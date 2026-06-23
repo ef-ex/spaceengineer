@@ -1,0 +1,43 @@
+# Godot editor and import metadata
+.godot/
+.import/
+*.import
+
+# Third-party / dev-only plugins
+addons/
+
+# Temporary manual scenes and scripts
+testing/
+temp/
+reports/
+
+# Large art/source assets; keep .gd/.tscn/.tres metadata, skip binary art
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.svg
+*.exr
+*.fbx
+*.glb
+*.gltf
+*.obj
+*.blend
+*.wav
+*.ogg
+*.mp3
+
+# Generated / local Graphify files
+graphify-out/.graphify_*
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
+
+# Local logs and test captures
+test_output.txt
+test_stdout.txt
+test_stderr.txt
+
+# Local editor configuration
+.vscode/
