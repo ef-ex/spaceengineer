@@ -3,9 +3,9 @@
 /android/
 
 # Exported / build artifacts (Steam uploads are built from here, not committed)
-/build/
-/builds/
-/export/
+build/
+builds/
+export/
 *.pck
 *.exe.manifest
 
@@ -29,11 +29,11 @@ TODO_TOMORROW.md
 **/*.pyo
 .venv/
 
-# Graphify local-only generated files
-graphify-out/.graphify_*
-graphify-out/cache/
-graphify-out/manifest.json
-graphify-out/cost.json
+# Graphify local-only generated files (any depth, e.g. godot/graphify-out/)
+.graphify_*
+**/graphify-out/cache/
+**/graphify-out/manifest.json
+**/graphify-out/cost.json
 
 # OS
 .DS_Store
