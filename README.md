@@ -7,6 +7,15 @@ project **Galaxia**.
 
 > **"Space Engineer" is a placeholder name.** See `documentation/` for the full design.
 
+## Repository layout
+
+- **`documentation/`** — design docs (vision, prototype scope, designer + mission specs).
+- **`godot/`** — the Godot project (the shippable game). Has its own project-level `.gitignore`.
+- **`source/`** — authoring source files (Houdini `.hip`, Blender, source textures/audio) that the
+  Godot project imports baked versions of.
+
+Editor plugins bundled in `godot/addons/`: **gdUnit4** (unit tests) and **Godot MCP** (AI bridge).
+
 ## Design docs
 
 All design lives in [`documentation/`](documentation/):
