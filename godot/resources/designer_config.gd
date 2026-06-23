@@ -39,5 +39,27 @@ extends Resource
 @export var hull_tile_color: Color = Color(0.55, 0.70, 0.95)
 @export var hull_tile_metallic: float = 0.2
 @export var hull_tile_roughness: float = 0.6
-## Translucent preview tile shown under the cursor.
+## Translucent valid-placement preview under the cursor.
 @export var ghost_color: Color = Color(1.0, 1.0, 1.0, 0.22)
+## Translucent preview when the cursor placement is invalid.
+@export var ghost_invalid_color: Color = Color(0.85, 0.23, 0.23, 0.30)
+
+@export_group("Decks")
+## Vertical world spacing between decks (visual only).
+@export var deck_height: float = 3.0
+
+@export_group("Overlay & feedback")
+## Flat colour hull/modules fade to when a network overlay is active, so the
+## live network reads clearly (the ONE-overlay-at-a-time pattern).
+@export var overlay_dim_color: Color = Color(0.16, 0.18, 0.22)
+@export var status_ok_color: Color = Color(0.18, 0.62, 0.46)
+@export var status_warn_color: Color = Color(0.73, 0.46, 0.09)
+@export var status_error_color: Color = Color(0.85, 0.23, 0.23)
+@export var status_inactive_color: Color = Color(0.42, 0.45, 0.50)
+
+@export_group("Networks")
+@export var power_color: Color = Color(0.93, 0.62, 0.15)
+@export var heat_color: Color = Color(0.85, 0.35, 0.25)
+## Conduit segment visual: height above the floor and box thickness.
+@export var conduit_height: float = 0.14
+@export var conduit_thickness: float = 0.24

@@ -1,0 +1,86 @@
+[gd_resource type="Resource" script_class="ModuleCatalog" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://resources/module_def.gd" id="1"]
+[ext_resource type="Script" path="res://resources/module_catalog.gd" id="2"]
+
+[sub_resource type="Resource" id="reactor"]
+script = ExtResource("1")
+id = "reactor"
+display_name = "Reactor"
+footprint = Vector2i(2, 2)
+color = Color(0.73, 0.46, 0.09, 1)
+cost = 12000
+power_produced = 10.0
+power_consumed = 0.0
+heat_produced = 8.0
+heat_dissipated = 0.0
+role = "powerplant"
+
+[sub_resource type="Resource" id="engine"]
+script = ExtResource("1")
+id = "engine"
+display_name = "Engine"
+footprint = Vector2i(1, 2)
+color = Color(0.11, 0.62, 0.46, 1)
+cost = 8000
+power_produced = 0.0
+power_consumed = 4.0
+heat_produced = 3.0
+heat_dissipated = 0.0
+role = "propulsion"
+
+[sub_resource type="Resource" id="bridge"]
+script = ExtResource("1")
+id = "bridge"
+display_name = "Bridge"
+footprint = Vector2i(1, 1)
+color = Color(0.22, 0.54, 0.87, 1)
+cost = 5000
+power_produced = 0.0
+power_consumed = 1.0
+heat_produced = 0.0
+heat_dissipated = 0.0
+role = "bridge"
+
+[sub_resource type="Resource" id="quarters"]
+script = ExtResource("1")
+id = "quarters"
+display_name = "Crew quarters"
+footprint = Vector2i(2, 1)
+color = Color(0.39, 0.6, 0.13, 1)
+cost = 4000
+power_produced = 0.0
+power_consumed = 1.0
+heat_produced = 1.0
+heat_dissipated = 0.0
+role = "crew"
+
+[sub_resource type="Resource" id="radiator"]
+script = ExtResource("1")
+id = "radiator"
+display_name = "Radiator"
+footprint = Vector2i(1, 1)
+color = Color(0.52, 0.72, 0.92, 1)
+cost = 2000
+power_produced = 0.0
+power_consumed = 0.0
+heat_produced = 0.0
+heat_dissipated = 8.0
+role = ""
+
+[sub_resource type="Resource" id="cargo"]
+script = ExtResource("1")
+id = "cargo"
+display_name = "Cargo hold"
+footprint = Vector2i(2, 2)
+color = Color(0.53, 0.53, 0.5, 1)
+cost = 3000
+power_produced = 0.0
+power_consumed = 0.0
+heat_produced = 0.0
+heat_dissipated = 0.0
+role = "cargo"
+
+[resource]
+script = ExtResource("2")
+modules = [SubResource("reactor"), SubResource("engine"), SubResource("bridge"), SubResource("quarters"), SubResource("radiator"), SubResource("cargo")]

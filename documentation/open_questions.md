@@ -6,13 +6,27 @@
 
 ## Critical — affect the core / longevity
 
-### 1. Blueprint trivialization (UNSOLVED)
-Blueprints are wanted (convenience + large-ship editing) but can kill the design loop: save one good
-ship, re-stamp forever, stop designing — and designing *is* the game. No accepted answer yet.
-Directions to chew on (not decided):
-- Make contract constraints vary enough that old blueprints must be **adapted**, not just stamped.
-- Treat a blueprint as a **starting point** you tweak per gate/budget, not a finished answer.
-- Have **prestige/luxury contracts forbid reused designs** (judged on originality).
+### 1. Blueprint trivialization — RESOLVED (approach); tuning TBD
+Blueprints are wanted (convenience + large-ship editing) but can kill the design loop if players just
+re-stamp one good ship forever — and designing *is* the game. **Resolved approach: a uniqueness/novelty
+score feeding the rating as a client-tier-weighted soft modifier.** Don't ban blueprints — make them
+unable to carry you up the ladder.
+
+- **Detection (cheap, deterministic, runs in the precalc step):** canonicalize the ship (translate to
+  origin + canonical rotation/mirror), then fingerprint it two ways — an exact **voxel-occupancy hash**
+  (catches literal copies) and a **feature vector** (module-type counts, bbox dims, mass, hardpoints,
+  network length, symmetry). Score similarity vs the player's *recent deliveries* (voxel **IoU** +
+  feature distance), take the max; **novelty = 1 − maxSimilarity**. A one-cell tweak barely moves IoU or
+  the features, so it can't dodge the check.
+- **Rating tie-in:** novelty is a **bucket-3 soft modifier** (`mission_generator.md`), **weighted by
+  client tier**. Bread-and-butter clients don't care → blueprints stay genuinely useful for grunt work.
+  **Luxury/prestige clients + awards demand bespoke** → deliver a clone and the rating tanks, so reuse
+  can't climb the prestige ladder. The design loop stays alive exactly where it gates progression,
+  without banning the feature.
+- **Still open (playtest-only tuning):** similarity threshold, shape-vs-modules weighting, per-tier
+  sensitivity. Keep it **gradient** (reward freshness more than punish reuse) and target
+  **wholesale-identical ships, not reused components** (a reused reactor layout is not plagiarism).
+  Err toward not nagging.
 
 ### 2. End-goal narrative depth — DECIDED direction, depth TBD
 End goal = design the **generation ship** (bridges to Galaxia's panspermia). Open: how much story/
@@ -52,3 +66,6 @@ for beauty beyond function?). No blueprint *sharing* (that's a Galaxia thing).
 - **Stations:** not in this game (Galaxia only).
 - **Settings/menu:** in the prototype.
 - **End goal:** the generation ship (see #2 for remaining depth questions).
+- **Blueprint trivialization:** novelty score (canonicalize → fingerprint → similarity vs recent
+  deliveries) feeding a client-tier-weighted soft rating modifier — blueprints stay valid for low-tier
+  contracts but can't climb the prestige ladder. Tuning is playtest-only. (Full detail in #1.)

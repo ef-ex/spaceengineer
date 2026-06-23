@@ -37,6 +37,10 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
 - **Contract** — purpose (→ required modules/stats) + gate class + budget.
 - **Validation + scripted gate fly-through** — pass/fail payoff. Scripted, NOT player flight.
 - **Screenshot button** — produces marketing clips + the "share my ship" appeal.
+- **Present the build** — an orbit/free camera to view the finished ship + decent default lighting and
+  a clean backdrop, so even blockout ships look "cool" and screenshot well. This is half of what the
+  demand test measures (people share builds they're proud of), so it's in — but **sequence it after**
+  the core mechanic (build the puzzle first, then add this layer). NOT a photo mode or turntable.
 - **Main menu + settings (video/audio).** Non-negotiable baseline polish; trivial to implement.
 
 ### LIGHT — minimal version only
@@ -44,7 +48,8 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
   Reputation/awards/penalties can be stubbed. NOT the full progression.
 
 ### OUT — deferred to the full game (good features, wrong time)
-- ❌ **Combat** (on hold entirely).
+- ❌ **Combat as gameplay** (firing/battles). Weapon *modules* (turrets/cannons as cosmetic + stat
+  parts) are a final-vision feature — see `game_vision.md` — but out of the prototype.
 - ❌ **Ship tester / player flight** — it's a flight-control system; the scripted gate fly-through
   covers the prototype payoff. Vision feature (pairs with hall of fame).
 - ❌ **Advanced art tools** — splines, painting, texture projection, complementary-color pickers.
@@ -52,7 +57,7 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
 - ❌ **Goliath / Titan classes** — Drake only. (Leviathan is cut from the game entirely.)
 - ❌ **Full progression** — reputation-gated clients, shipyard unlocks, pattern unlocks, awards, the
   generation-ship finale. All vision.
-- ❌ **Blueprints, O2/water networks (unless cheap), turntable/video, stations.**
+- ❌ **Blueprints, O2/water networks (unless cheap), turntable/video, photo mode, showroom/gallery, stations.**
 
 ---
 
@@ -62,6 +67,7 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
       fitting ship — unaided (tutorial via the wiki system; see `open_questions.md`).
 - [ ] A playtest shows a *spread* of viable designs for the same contract (freedom is real).
 - [ ] One clean 15-sec hook clip exists (custom ship threading a tight gate) and reads instantly.
+- [ ] The finished ship is viewable from any angle (orbit camera) and reads as "cool" under default lighting.
 - [ ] ~3–5 escalating contracts + the pay/rating/small-shop loop.
 - [ ] Main menu + working video/audio settings.
 - [ ] No item from the OUT list snuck in.
@@ -74,5 +80,6 @@ Recorded so they aren't lost — see `game_vision.md` for the coherent picture:
 ship tester + hall of fame, art tools (spline hull, copy tools, advanced/complementary color
 pickers, texture projection), turntable/video capture, the Goliath/Titan class system, the
 money→shipyard / reputation→clients+patterns progression, awards (e.g. max-rating streaks → luxury
-clients), the **generation-ship finale** (bridging into Galaxia's panspermia), and the wiki-based
-tutorial. Combat is on hold.
+clients), the **generation-ship finale** (bridging into Galaxia's panspermia), the wiki-based
+tutorial, and **weapon modules** (cosmetic/structural turrets/cannons + a contract dimension — see
+`game_vision.md`). Combat-as-gameplay stays cut.

@@ -1,8 +1,12 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/designer.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/designer_config.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/module_catalog.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/contract.tres" id="4"]
 
 [node name="Designer" type="Node3D"]
 script = ExtResource("1")
 config = ExtResource("2")
+catalog = ExtResource("3")
+contract = ExtResource("4")

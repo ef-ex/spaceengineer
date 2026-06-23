@@ -53,11 +53,27 @@ commission**, not a general buildable class.
 **Drake / Goliath / Titan.** (Leviathan dropped — a Galaxia concept; the generation-ship finale is a
 special build, not a class.)
 
+## Weapons (cosmetic/structural modules — NOT combat)
+
+The fantasy is building cool, iconic ships, and iconic ships (X-wing, Star Destroyer, Enterprise) are
+*armed*. So weapons belong in the final vision — but as **ship modules**, not a combat system:
+
+- **IN (final vision):** weapons as a **module category** — turrets, cannons, torpedo bays — with a
+  look + stats (mass, power, footprint, gate-fit cost), and a **contract dimension** ("military client
+  wants a patrol ship with ≥4 turret hardpoints"). Players build their armed ships; the contract
+  checks the spec. **Nothing fires** — zero combat code required.
+- **OUT (stays cut):** combat *as gameplay* — flying, firing, enemies, damage, AI, balancing, a battle
+  arena. That's a whole second game and is not part of Space Engineer.
+
+The line: weapons are part of the *build*, not a *fight*. Any future "see it fire" behavior pairs with
+the (deferred) ship tester and is a separate, opt-in decision. Weapon modules are Space-Engineer-only —
+they do not transfer to Galaxia (which is non-combat).
+
 ## What this game is NOT (the Galaxia/Space-Engineer split)
 
 Out of scope here, belongs to Galaxia: stations, the resource/production chain, blueprint *sharing*,
-combat (on hold), galaxy map / fleet logistics. **Space Engineer = the ship designer + the job-sim
-wrapper.**
+galaxy map / fleet logistics. **Space Engineer = the ship designer + the job-sim wrapper.**
+(Combat-as-gameplay is out of *both* games — see Weapons above.)
 
 ## What transfers to Galaxia
 

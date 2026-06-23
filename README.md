@@ -23,6 +23,7 @@ All design lives in [`documentation/`](documentation/):
 - `game_vision.md` — read-first big picture.
 - `prototype_scope.md` — what's in the first shippable build.
 - `ship_designer_spec.md` — the grid/hull/interior designer.
+- `designer_ux_research.md` — UX/UI/building-feature survey of shipped games, with recommendations.
 - `mission_generator.md` — the procedural contract generator.
 - `ships_and_stations_design.md` — the ship design model.
 - `open_questions.md` — living checklist of unresolved design questions.
