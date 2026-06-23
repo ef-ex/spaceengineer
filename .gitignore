@@ -1,0 +1,40 @@
+# Godot 4+
+.godot/
+/android/
+
+# Exported / build artifacts (Steam uploads are built from here, not committed)
+/build/
+/builds/
+/export/
+*.pck
+*.exe.manifest
+
+# EXR files (prevent accidental commits)
+*.exr
+*.exr.import
+
+# Test reports (gdUnit4)
+reports/
+
+# Temp / scratch
+temp/
+test_output.txt
+test_stderr.txt
+test_stdout.txt
+TODO_TOMORROW.md
+
+# Python (tooling / Houdini bridge / graphify)
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.venv/
+
+# Graphify local-only generated files
+graphify-out/.graphify_*
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
+
+# OS
+.DS_Store
+Thumbs.db
