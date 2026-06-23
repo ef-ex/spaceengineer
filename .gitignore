@@ -29,11 +29,12 @@ TODO_TOMORROW.md
 **/*.pyo
 .venv/
 
-# Graphify local-only generated files (any depth, e.g. godot/graphify-out/)
+# Graphify — entirely local-only generated knowledge graph (any depth, e.g. godot/graphify-out/)
 .graphify_*
-**/graphify-out/cache/
-**/graphify-out/manifest.json
-**/graphify-out/cost.json
+**/graphify-out/
+
+# Godot MCP bridge — generated screenshots / cache (local-only)
+**/addons/godot_mcp/cache/
 
 # OS
 .DS_Store

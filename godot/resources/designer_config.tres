@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="DesignerConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/designer_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+grid_size = 16
+cell_size = 1.0
+orbit_initial_yaw = -0.7
+orbit_initial_pitch = 0.9
+orbit_initial_distance = 24.0
+orbit_min_pitch = 0.2
+orbit_max_pitch = 1.45
+orbit_min_distance = 6.0
+orbit_max_distance = 60.0
+orbit_speed = 0.01
+zoom_step = 2.0
+background_color = Color(0.05, 0.06, 0.09, 1)
+ambient_color = Color(0.4, 0.45, 0.55, 1)
+ambient_energy = 0.7
+sun_rotation_degrees = Vector3(-55, -40, 0)
+sun_energy = 1.1
+grid_line_color = Color(0.3, 0.4, 0.55, 0.6)
+hull_tile_color = Color(0.55, 0.7, 0.95, 1)
+hull_tile_metallic = 0.2
+hull_tile_roughness = 0.6
+ghost_color = Color(1, 1, 1, 0.22)
