@@ -249,29 +249,31 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _key(event: InputEventKey) -> void:
-	if event.ctrl_pressed and event.keycode == KEY_Z:
+	# Bindings come from the InputMap (Keybinds autoload); rebindable in Settings.
+	# Ctrl-combos checked first so a plain key can't shadow them.
+	if event.is_action_pressed("des_undo"):
 		_undo_op()
-	elif event.ctrl_pressed and event.keycode == KEY_Y:
+	elif event.is_action_pressed("des_redo"):
 		_redo_op()
-	elif event.keycode == KEY_1 or event.keycode == KEY_S:
+	elif event.is_action_pressed("des_select"):
 		_set_tool(Tool.SELECT)
-	elif event.keycode == KEY_2:
+	elif event.is_action_pressed("des_hull"):
 		_set_tool(Tool.HULL)
-	elif event.keycode == KEY_3:
+	elif event.is_action_pressed("des_modules"):
 		_set_tool(Tool.MODULE)
-	elif event.keycode == KEY_4:
+	elif event.is_action_pressed("des_route"):
 		_set_tool(Tool.ROUTE)
-	elif event.keycode == KEY_5:
+	elif event.is_action_pressed("des_riser"):
 		_set_tool(Tool.RISER)
-	elif event.keycode == KEY_M:
+	elif event.is_action_pressed("des_mirror"):
 		_set_mirror(not _mirror)
-	elif event.keycode == KEY_R:
+	elif event.is_action_pressed("des_rotate"):
 		_rotate_placement()
-	elif event.keycode == KEY_C:
+	elif event.is_action_pressed("des_copy"):
 		_copy_selected()
-	elif event.keycode == KEY_DELETE:
+	elif event.is_action_pressed("des_delete"):
 		_delete_selected()
-	elif event.keycode == KEY_ESCAPE:
+	elif event.is_action_pressed("des_menu"):
 		_open_menu()
 
 

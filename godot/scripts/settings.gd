@@ -12,19 +12,8 @@ const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(3840, 2160),
 ]
 
-## Reference list of the designer's controls (currently fixed; see designer.gd).
-const KEYBINDS := [
-	["Select mode", "1 / S"],
-	["Hull tool", "2"],
-	["Modules tool", "3"],
-	["Route tool", "4"],
-	["Riser tool", "5"],
-	["Rotate module", "R"],
-	["Copy selected", "C"],
-	["Toggle mirror", "M"],
-	["Delete selected", "Delete"],
-	["Undo / Redo", "Ctrl+Z / Ctrl+Y"],
-	["Open menu", "Esc"],
+## Fixed mouse controls, shown as read-only reference (keys are rebindable above).
+const MOUSE_REF := [
 	["Select / build", "Left click"],
 	["Move object", "Left drag"],
 	["Erase", "Right click"],
@@ -33,6 +22,8 @@ const KEYBINDS := [
 ]
 
 var _sm: Node
+var _rebinding := ""              # action currently listening for a new key, "" if none
+var _bind_buttons := {}           # action -> Button (to refresh its label)
 ## When true (opened from the in-game menu), Back closes this overlay instead of
 ## changing scene, so the build in progress is preserved. Set before adding to tree.
 var as_overlay := false
@@ -133,11 +124,13 @@ func _build_controls_tab() -> Control:
 	root.add_child(opts)
 
 	root.add_child(HSeparator.new())
-	var heading := Label.new()
-	heading.text = "Keyboard & mouse"
-	heading.add_theme_font_size_override("font_size", 16)
-	heading.modulate = Color(0.7, 0.82, 1.0)
-	root.add_child(heading)
+	var head := _row_with(_heading("Keyboard"))
+	var reset := Button.new()
+	reset.text = "Reset to defaults"
+	reset.focus_mode = Control.FOCUS_NONE
+	reset.pressed.connect(_on_reset_keys)
+	head.add_child(reset)
+	root.add_child(head)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -147,19 +140,88 @@ func _build_controls_tab() -> Control:
 	grid.columns = 2
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 28)
-	grid.add_theme_constant_override("v_separation", 8)
+	grid.add_theme_constant_override("v_separation", 6)
 	scroll.add_child(grid)
-	for bind in KEYBINDS:
-		var a := Label.new()
-		a.text = bind[0]
-		a.modulate = Color(1, 1, 1, 0.7)
-		a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		grid.add_child(a)
-		var k := Label.new()
-		k.text = bind[1]
-		grid.add_child(k)
+	for a in Keybinds.actions():
+		var label := Label.new()
+		label.text = a[1]
+		label.modulate = Color(1, 1, 1, 0.75)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(label)
+		var btn := Button.new()
+		btn.text = Keybinds.display(a[0])
+		btn.custom_minimum_size = Vector2(140, 0)
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.pressed.connect(_begin_rebind.bind(a[0]))
+		_bind_buttons[a[0]] = btn
+		grid.add_child(btn)
+
+	root.add_child(_heading("Mouse"))
+	var mgrid := GridContainer.new()
+	mgrid.columns = 2
+	mgrid.add_theme_constant_override("h_separation", 28)
+	mgrid.add_theme_constant_override("v_separation", 6)
+	root.add_child(mgrid)
+	for m in MOUSE_REF:
+		var ml := Label.new()
+		ml.text = m[0]
+		ml.modulate = Color(1, 1, 1, 0.55)
+		ml.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mgrid.add_child(ml)
+		var mk := Label.new()
+		mk.text = m[1]
+		mk.modulate = Color(1, 1, 1, 0.55)
+		mgrid.add_child(mk)
 
 	return root
+
+
+func _heading(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 16)
+	l.modulate = Color(0.7, 0.82, 1.0)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return l
+
+
+func _row_with(first: Control) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_child(first)
+	return h
+
+
+func _begin_rebind(action: String) -> void:
+	if _rebinding != "" and _bind_buttons.has(_rebinding):
+		_bind_buttons[_rebinding].text = Keybinds.display(_rebinding)
+	_rebinding = action
+	_bind_buttons[action].text = "Press a key…"
+
+
+func _on_reset_keys() -> void:
+	Keybinds.reset()
+	_rebinding = ""
+	_refresh_binds()
+
+
+func _refresh_binds() -> void:
+	for action in _bind_buttons:
+		_bind_buttons[action].text = Keybinds.display(action)
+
+
+func _input(event: InputEvent) -> void:
+	if _rebinding == "":
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var kc: int = event.keycode
+	if kc in [KEY_CTRL, KEY_SHIFT, KEY_ALT, KEY_META]:
+		return   # wait for a real key, not a lone modifier
+	get_viewport().set_input_as_handled()
+	if kc != KEY_ESCAPE:    # Escape cancels the rebind
+		Keybinds.rebind(_rebinding, kc, event.ctrl_pressed)
+	_rebinding = ""
+	_refresh_binds()
 
 
 func _build_audio_tab() -> Control:
