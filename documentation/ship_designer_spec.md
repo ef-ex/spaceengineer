@@ -19,22 +19,48 @@
 ## Shape definition (the hull / exterior, Layer 1)
 
 The player defines which grid tiles make up the ship — maximum artistic freedom, minimum friction.
+Because flexible hull shaping is the **core** of ship creation, the prototype must test it (not just
+block-painting). The decision: bring a **cheap, authored-mesh** version of the hull-piece system into
+the prototype, and keep the runtime-*generative* version as vision.
 
-- **Prototype tool: rectangle / cell selection.** Select tiles to fill. Trivial, already varied.
-- **Vision tool: spline outline.** Draw a spline; per grid cell, measure the enclosed polygon area;
-  area ≥ threshold → filled cell, else border/empty. (The proven LEGO-stud technique — a bounded,
-  feasible tool, not freehand painting.)
-- **Shared primitive: the "valid cell" test** — *does the shape cover ≥ threshold of this cell?*
-  Built once; every shape tool (rectangle, spline, future freeform) feeds the same validator.
-- **Vision endpoint: procedural hull pieces** (grid-defining, deformable) — see the build model in
-  `ships_and_stations_design.md`. They simply *emit* valid cells.
-
-Spline is a fast-follow, not day-one — the prototype proves the loop with rectangle selection first.
+- **Prototype tool: placeable authored hull pieces.** Place parametric pieces that **occupy grid
+  cells** and carry an **authored mesh** with simple, art-cheap controls (see "Prototype hull pieces"
+  below). Rectangle/cell selection remains as the trivial degenerate piece / quick block-fill.
+- **Vision: spline outline** (fast-follow) and **runtime-generative deformable pieces** — the full
+  build-model foundation in `ships_and_stations_design.md`. Same role as the prototype pieces, just
+  generated in code instead of authored.
+- **Shared primitive: the "valid cell" test** — *does the shape cover ≥ threshold of this cell?* Built
+  once; every shape tool (rectangle, piece, spline, future freeform) feeds the same validator.
 
 > **Forward-compat invariant:** the canonical input to interior + function is always **"hull = a set
-> of occupied grid cells"** (`ShipDesign.hull`), regardless of which tool authored them. Keep this and
-> nothing built now blocks the spline/procedural-pieces vision — each tool is just a different way to
-> produce cells.
+> of occupied grid cells"** (`ShipDesign.hull`), regardless of which tool authored them. The hull pieces
+> *emit* cells; their mesh/shape is visual only. Keep this and nothing built now blocks the
+> spline/generative-pieces vision — each tool is just a different way to produce cells.
+
+### Prototype hull pieces (authored-mesh approach)
+
+Avoid runtime geometry generation in the prototype (the expensive part); use **authored meshes** (we
+have the Houdini pipeline) with two art-cheap handle types:
+
+- **Morph weight (continuous).** Author the piece with **blend shapes / morph targets** (e.g. "curve
+  amount", "flare top", "fillet"); a Select-panel slider sets each 0–1 weight at runtime. This is
+  "drag existing points further out", baked at author time — no runtime mesh math.
+- **Variant swap (discrete).** A handle switches between a few authored base meshes for bigger profile
+  changes.
+
+Per-piece structure (the floor/wall split):
+- **Floor side — nothing new.** Floor depth = occupy *N* more grid cells; the floor visual is the cell
+  tiles already rendered. No geometry work.
+- **Wall side.** An authored wall-segment mesh that **aligns to the cell at its base** and **tiles per
+  cell** along the length (so "longer" = more segments, profile stays consistent — no stretch). It
+  carries the morph targets. Seams between adjacent pieces are designed to tile cleanly in Houdini.
+
+Controls live in **Select mode** (select a placed piece → its sliders appear). Piece set: **start with
+two — `hullSide` (handles: wall length in cells, floor depth in cells, outer curvature morph) and
+`corner` (+ fillet morph).** Two cover any rectangle/octagon-ish hull. Add a **concave/inner corner**
+when non-rectangular hulls are wanted, and an **interior floor tile** only if ships get deep enough
+that opposite side-floors don't meet. **Keep the set tiny — resist variant sprawl.** This is the one
+deliberate, bounded "authored art" exception in the prototype (justified by the Houdini pipeline).
 
 ## Class = size, NOT grid scale
 
@@ -93,8 +119,10 @@ of the ship. Laying out a clean, working network is the puzzle.
 
 ## Visuals — shading, colour, preview meshes (prototype)
 
-Nothing exists yet shading-wise; build it **cheap (no authored art)**. This serves the demand test
-("a ship I'm proud of"), so plain boxes are a real problem to fix.
+Nothing exists yet shading-wise; build it **cheap** — shading and the module **preview meshes** use
+composed primitives (no authored art); the **hull pieces** are the one authored-mesh exception (see
+"Shape definition"). This serves the demand test ("a ship I'm proud of"), so plain boxes are a real
+problem to fix.
 
 - **Shading pipeline:** one cached `StandardMaterial3D` factory shared by the designer and
   `ship_renderer.gd` (albedo / metallic / roughness / emission per surface, driven by data); bring the
@@ -108,12 +136,14 @@ Nothing exists yet shading-wise; build it **cheap (no authored art)**. This serv
 - **Build order:** shading+lighting → colour → shape recipes → hull paneling (each independently
   shippable).
 
-Advanced colour tools, textures/materials, and authored/freeform meshes are vision (build model in
-`ships_and_stations_design.md`; deferred per `prototype_scope.md`).
+Advanced colour tools, textures/materials, and *freeform/sculpted* meshes are vision; the prototype's
+one bounded **authored-mesh** exception is the hull pieces (see "Shape definition"). (Build model in
+`ships_and_stations_design.md`; deferred items per `prototype_scope.md`.)
 
 ## Prototype subset
 
-Drake only; rectangle/cell shaping; place a handful of interior modules; **manually route power +
-heat** (add O2/water only if cheap); precalc pass/fail + diagnostics; gate-fit check; flat-colour
-customization. Splines, procedural hull pieces, blueprints, multiple classes, textures, and the full
-network set are vision, not prototype.
+Drake only; **authored hull pieces** (cells + morph handles), with rectangle/cell as the quick
+fallback; place a handful of interior modules; **manually route power + heat** (add O2/water only if
+cheap); precalc pass/fail + diagnostics; gate-fit check; flat-colour customization. Splines,
+**runtime-generative** hull pieces, blueprints, multiple classes, textures, and the full network set
+are vision, not prototype.

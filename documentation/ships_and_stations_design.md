@@ -59,7 +59,9 @@ them with **four systems**, foundation first:
    a **logical grid footprint** (integer cells → drives interior + function, stays simple) and a
    **procedural visual skin** (taper/curve/bevel → the exterior, what stops ships reading as blocks).
    This beats Space Engineers/Avorion because you deform *well-authored hull segments* over the grid,
-   not cubes. **Deformation must stay grid-preserving.**
+   not cubes. **Deformation must stay grid-preserving.** **Prototype slice:** a cheap version of this
+   *is* in the prototype — **authored** meshes with morph/variant handles instead of runtime geometry
+   generation (see `ship_designer_spec.md` → "Prototype hull pieces").
 2. **Decorative objects.** Freely placed props (some procedurally adjustable). Includes **posed
    puppets** — *static* crew figures for scale/life (no animation/pathing; animated NPCs are far later).
 3. **Custom modeling tools.** Freeform shapes for bespoke bits the piece library doesn't cover.

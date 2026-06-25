@@ -30,7 +30,12 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
 ## Feature triage
 
 ### IN — the core hook + must-haves
-- **Block/primitive hull shaping** (rectangle/cell selection). Not splines, not painting.
+- **Hull shaping via authored hull pieces** — placeable parametric pieces that occupy grid cells and
+  carry an **authored mesh** with simple morph/variant handles (rectangle/cell as the quick fallback).
+  Flexible hull shaping is the **core creative act**, so a cheap version must be in the prototype to
+  test the real hook — *not* splines, freeform sculpting, or runtime-generated geometry (those are
+  vision). One bounded authored-art exception, justified by the Houdini pipeline. See
+  `ship_designer_spec.md`.
 - **Interior module placement + manual conduit routing** (power + heat to start; pipes/cables run in
   walls/floors). Connectivity puzzle, validated by precalc. See `ship_designer_spec.md`.
 - **Gate-fit constraint** — exterior silhouette must pass the contract's gate.
