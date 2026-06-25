@@ -38,6 +38,11 @@ func _ready() -> void:
 	play.pressed.connect(_on_play)
 	vb.add_child(play)
 
+	if Career.has_save():
+		var cont := _menu_button("Continue")
+		cont.pressed.connect(_on_continue)
+		vb.add_child(cont)
+
 	var settings := _menu_button("Settings")
 	settings.pressed.connect(_change_scene.bind(SETTINGS_SCENE))
 	vb.add_child(settings)
@@ -63,6 +68,11 @@ func _spacer(h: int) -> Control:
 func _on_play() -> void:
 	Career.new_game()
 	get_tree().change_scene_to_file(BRIEFING_SCENE)
+
+
+func _on_continue() -> void:
+	if Career.load_run():
+		get_tree().change_scene_to_file(BRIEFING_SCENE)
 
 
 func _change_scene(path: String) -> void:

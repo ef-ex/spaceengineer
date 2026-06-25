@@ -12,7 +12,30 @@ const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(3840, 2160),
 ]
 
+## Reference list of the designer's controls (currently fixed; see designer.gd).
+const KEYBINDS := [
+	["Select mode", "1 / S"],
+	["Hull tool", "2"],
+	["Modules tool", "3"],
+	["Route tool", "4"],
+	["Riser tool", "5"],
+	["Rotate module", "R"],
+	["Copy selected", "C"],
+	["Toggle mirror", "M"],
+	["Delete selected", "Delete"],
+	["Undo / Redo", "Ctrl+Z / Ctrl+Y"],
+	["Open menu", "Esc"],
+	["Select / build", "Left click"],
+	["Move object", "Left drag"],
+	["Erase", "Right click"],
+	["Orbit camera", "Middle drag"],
+	["Zoom", "Mouse wheel"],
+]
+
 var _sm: Node
+## When true (opened from the in-game menu), Back closes this overlay instead of
+## changing scene, so the build in progress is preserved. Set before adding to tree.
+var as_overlay := false
 
 
 func _ready() -> void:
@@ -93,20 +116,50 @@ func _build_video_tab() -> Control:
 
 
 func _build_controls_tab() -> Control:
-	var grid := GridContainer.new()
-	grid.name = "Controls"
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 28)
-	grid.add_theme_constant_override("v_separation", 18)
+	var root := VBoxContainer.new()
+	root.name = "Controls"
+	root.add_theme_constant_override("separation", 14)
 
-	grid.add_child(_field_label("Invert camera Y"))
+	var opts := GridContainer.new()
+	opts.columns = 2
+	opts.add_theme_constant_override("h_separation", 28)
+	opts.add_theme_constant_override("v_separation", 12)
+	opts.add_child(_field_label("Invert camera Y"))
 	var invert := CheckButton.new()
 	invert.button_pressed = _sm.invert_camera_y
 	invert.tooltip_text = "Off: drag down tilts up to the top (3D-software style). On: free-look style."
 	invert.toggled.connect(_on_invert_toggled)
-	grid.add_child(invert)
+	opts.add_child(invert)
+	root.add_child(opts)
 
-	return grid
+	root.add_child(HSeparator.new())
+	var heading := Label.new()
+	heading.text = "Keyboard & mouse"
+	heading.add_theme_font_size_override("font_size", 16)
+	heading.modulate = Color(0.7, 0.82, 1.0)
+	root.add_child(heading)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	root.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 28)
+	grid.add_theme_constant_override("v_separation", 8)
+	scroll.add_child(grid)
+	for bind in KEYBINDS:
+		var a := Label.new()
+		a.text = bind[0]
+		a.modulate = Color(1, 1, 1, 0.7)
+		a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(a)
+		var k := Label.new()
+		k.text = bind[1]
+		grid.add_child(k)
+
+	return root
 
 
 func _build_audio_tab() -> Control:
@@ -168,4 +221,7 @@ func _on_volume_changed(value: float, bus: String, label: Label) -> void:
 
 func _on_back() -> void:
 	_sm.save_settings()
-	get_tree().change_scene_to_file(MENU_SCENE)
+	if as_overlay:
+		queue_free()
+	else:
+		get_tree().change_scene_to_file(MENU_SCENE)

@@ -7,6 +7,7 @@ extends Node
 const CONTRACT_SET: ContractSet = preload("res://resources/contract_set.tres")
 const CATALOG: ModuleCatalog = preload("res://resources/module_catalog.tres")
 const STARTING_MONEY := 30000
+const SAVE_PATH := "user://career.cfg"
 
 var money: int = STARTING_MONEY
 var contract_index: int = 0
@@ -68,3 +69,34 @@ func record_delivery(stars: int, payout: int) -> void:
 	ratings.append(stars)
 	contract_index += 1
 	pending_design = null
+
+
+# --- Save / load (run progress only — not the in-progress ship) -------------
+
+func has_save() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+
+func save_run() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("run", "money", money)
+	cfg.set_value("run", "contract_index", contract_index)
+	cfg.set_value("run", "unlocked_ids", unlocked_ids)
+	cfg.set_value("run", "ratings", ratings)
+	cfg.save(SAVE_PATH)
+
+
+func load_run() -> bool:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) != OK:
+		return false
+	money = cfg.get_value("run", "money", STARTING_MONEY)
+	contract_index = cfg.get_value("run", "contract_index", 0)
+	unlocked_ids.clear()
+	for id in cfg.get_value("run", "unlocked_ids", []):
+		unlocked_ids.append(str(id))
+	ratings.clear()
+	for r in cfg.get_value("run", "ratings", []):
+		ratings.append(int(r))
+	pending_design = null
+	return true
