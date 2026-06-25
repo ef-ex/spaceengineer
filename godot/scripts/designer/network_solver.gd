@@ -59,7 +59,8 @@ static func solve(model: ShipDesign, catalog: ModuleCatalog, network: String, de
 			var def := catalog.by_id(entry.id)
 			if def == null:
 				continue
-			var touched := _touched_nodes(model, network, deck, entry.origin, def.footprint)
+			var fp := ShipDesign.rotated_footprint(def.footprint, entry.get("rot", 0))
+			var touched := _touched_nodes(model, network, deck, entry.origin, fp)
 			var key := _mkey(deck, entry.origin)
 			if touched.is_empty():
 				mod_touch[key] = null

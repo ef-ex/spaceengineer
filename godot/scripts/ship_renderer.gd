@@ -18,7 +18,7 @@ static func build(model: ShipDesign, config: DesignerConfig, catalog: ModuleCata
 			var def := catalog.by_id(entry.id)
 			if def == null:
 				continue
-			var fp: Vector2i = def.footprint
+			var fp := ShipDesign.rotated_footprint(def.footprint, entry.get("rot", 0))
 			var size := Vector3(fp.x * config.cell_size, config.cell_size * 0.7, fp.y * config.cell_size) * 0.9
 			var c := Vector3(
 				(entry.origin.x + fp.x * 0.5) * config.cell_size,

@@ -8,16 +8,21 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
-enum Tool { HULL, MODULE, ROUTE, RISER }
+enum Tool { SELECT, HULL, MODULE, ROUTE, RISER }
 
 @export var config: DesignerConfig
 @export var catalog: ModuleCatalog
 @export var contract: Contract
 
 var _model: ShipDesign
-var _tool: int = Tool.HULL
+var _tool: int = Tool.SELECT
 var _overlay: String = ""          # "", "power", "heat"
 var _active_module: String = ""    # selected module id for the Module tool
+var _place_rot: int = 0            # rotation (quarter-turns) for the next placement
+var _selected: Dictionary = {}     # the module entry picked in Select mode
+var _sel_deck: int = 0
+var _moving := false               # dragging the selected module to a new cell
+var _drag_origin := Vector2i.ZERO  # selected module's origin when the drag began
 var _active_deck: int = 0
 var _deck_count: int = 1
 var _mirror := false
@@ -248,18 +253,26 @@ func _key(event: InputEventKey) -> void:
 		_undo_op()
 	elif event.ctrl_pressed and event.keycode == KEY_Y:
 		_redo_op()
-	elif event.keycode == KEY_1:
-		_set_tool(Tool.HULL)
+	elif event.keycode == KEY_1 or event.keycode == KEY_S:
+		_set_tool(Tool.SELECT)
 	elif event.keycode == KEY_2:
-		_set_tool(Tool.MODULE)
+		_set_tool(Tool.HULL)
 	elif event.keycode == KEY_3:
-		_set_tool(Tool.ROUTE)
+		_set_tool(Tool.MODULE)
 	elif event.keycode == KEY_4:
+		_set_tool(Tool.ROUTE)
+	elif event.keycode == KEY_5:
 		_set_tool(Tool.RISER)
 	elif event.keycode == KEY_M:
 		_set_mirror(not _mirror)
+	elif event.keycode == KEY_R:
+		_rotate_placement()
+	elif event.keycode == KEY_C:
+		_copy_selected()
+	elif event.keycode == KEY_DELETE:
+		_delete_selected()
 	elif event.keycode == KEY_ESCAPE:
-		_on_back()
+		_open_menu()
 
 
 func _paint_button(add: bool, event: InputEventMouseButton) -> void:
@@ -267,23 +280,35 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 	if event.pressed:
 		if cell == null:
 			return
-		if _tool == Tool.MODULE:
-			_push_undo()
-			if add:
-				_place_module(cell)
-			else:
-				_remove_module(cell)
-			_post_change()
-		else:
-			_dragging = true
-			_drag_add = add
-			_drag_start = cell
+		match _tool:
+			Tool.SELECT:
+				if add:
+					_select_at(cell)
+				else:
+					_erase_module_at(cell)
+			Tool.MODULE:
+				_push_undo()
+				if add:
+					_place_module(cell)
+				else:
+					_remove_module(cell)
+				_post_change()
+			_:
+				_dragging = true
+				_drag_add = add
+				_drag_start = cell
+				_update_preview()
+	else:
+		if _tool == Tool.SELECT and _moving:
+			_moving = false
+			if cell != null:
+				_move_selected(cell)
 			_update_preview()
-	elif _dragging and _tool != Tool.MODULE:
-		_dragging = false
-		if cell != null:
-			_apply_rect(_drag_start, cell, _drag_add)
-		_update_preview()
+		elif _dragging and _tool != Tool.MODULE:
+			_dragging = false
+			if cell != null:
+				_apply_rect(_drag_start, cell, _drag_add)
+			_update_preview()
 
 
 func _resolve_cell(screen_pos: Vector2) -> Variant:
@@ -350,12 +375,101 @@ func _place_module(cell: Vector2i) -> void:
 	var def := catalog.by_id(_active_module)
 	if def == null:
 		return
-	if _model.can_place_module(_active_deck, def, cell):
-		_model.place_module(_active_deck, def, cell)
+	_place_one(cell, def, _place_rot)
 	if _mirror:
-		var morigin := _mirror_origin(cell, def.footprint)
-		if morigin != cell and _model.can_place_module(_active_deck, def, morigin):
-			_model.place_module(_active_deck, def, morigin)
+		var morigin := _mirror_origin(cell, ShipDesign.rotated_footprint(def.footprint, _place_rot))
+		if morigin != cell:
+			_place_one(morigin, def, _place_rot)
+
+
+func _place_one(origin: Vector2i, def: ModuleDef, rot: int) -> void:
+	# Place only where valid — all hull and no overlap (the ghost shows green/red).
+	if _model.can_place_module(_active_deck, def, origin, rot):
+		_model.place_module(_active_deck, def, origin, rot)
+
+
+func _rotate_placement() -> void:
+	if _tool != Tool.MODULE:
+		_set_tool(Tool.MODULE)
+	_place_rot = (_place_rot + 1) % 4
+	_update_preview()
+
+
+# --- Select mode ------------------------------------------------------------
+
+func _select_at(cell: Vector2i) -> void:
+	var entry := _model.module_at(_active_deck, cell)
+	if entry.is_empty():
+		_selected = {}
+		_moving = false
+	else:
+		_selected = entry
+		_sel_deck = _active_deck
+		_drag_origin = entry.origin
+		_drag_start = cell
+		_moving = true   # a drag from here moves it; a click just selects
+	_render()
+	_refresh_ui()
+
+
+func _erase_module_at(cell: Vector2i) -> void:
+	if _model.module_at(_active_deck, cell).is_empty():
+		return
+	_push_undo()
+	_model.remove_module_at(_active_deck, cell)
+	_selected = {}
+	_post_change()
+
+
+func _move_selected(target_cell: Vector2i) -> void:
+	if _selected.is_empty():
+		return
+	var new_origin: Vector2i = _drag_origin + (target_cell - _drag_start)
+	if new_origin == _selected.origin:
+		return
+	var def := catalog.by_id(_selected.id)
+	if def == null:
+		return
+	var rot: int = _selected.get("rot", 0)
+	var old_origin: Vector2i = _selected.origin
+	_push_undo()
+	_model.remove_module_at(_sel_deck, old_origin)
+	if _model.can_place_module(_sel_deck, def, new_origin, rot):
+		_model.place_module(_sel_deck, def, new_origin, rot)
+		_selected = _model.module_at(_sel_deck, new_origin)
+	else:
+		_model.place_module(_sel_deck, def, old_origin, rot)   # invalid -> put it back
+		_selected = _model.module_at(_sel_deck, old_origin)
+	_post_change()
+
+
+func _delete_selected() -> void:
+	if _selected.is_empty():
+		return
+	_push_undo()
+	_model.remove_module_at(_sel_deck, _selected.origin)
+	_selected = {}
+	_post_change()
+
+
+func _copy_selected() -> void:
+	# Eyedropper: adopt the selected module's type + rotation and switch to placing.
+	if _selected.is_empty():
+		return
+	_active_module = _selected.id
+	_place_rot = _selected.get("rot", 0)
+	_set_tool(Tool.MODULE)
+
+
+func _can_move_to(cells: Array) -> bool:
+	# Valid move target: all hull and unoccupied, ignoring the module's own cells.
+	for c in cells:
+		if not _model.has_hull(_active_deck, c):
+			return false
+		var at := _model.module_at(_active_deck, c)
+		if not at.is_empty() and at.origin != _selected.origin:
+			return false
+	return true
 
 
 func _remove_module(cell: Vector2i) -> void:
@@ -461,7 +575,7 @@ func _render_deck(d: int, ghost: bool) -> void:
 		var def := catalog.by_id(entry.id)
 		if def == null:
 			continue
-		var fp: Vector2i = def.footprint
+		var fp := ShipDesign.rotated_footprint(def.footprint, entry.get("rot", 0))
 		var col := def.color
 		if dim:
 			col = config.overlay_dim_color
@@ -473,6 +587,8 @@ func _render_deck(d: int, ghost: bool) -> void:
 			y + slab + size.y * 0.5,
 			(entry.origin.y + fp.y * 0.5) * config.cell_size)
 		_add_box(_world, center, size, col)
+		if d == _sel_deck and not _selected.is_empty() and entry.origin == _selected.origin and entry.id == _selected.id:
+			_add_box(_world, center, size * 1.12, Color(0.40, 0.72, 1.0, 0.35), true, true)
 		_add_label(def.display_name, center + Vector3(0, size.y * 0.5 + 0.25, 0))
 
 	if dim and _results.has(_overlay):
@@ -499,6 +615,21 @@ func _update_preview() -> void:
 		return
 	var y := _floor_y(_active_deck) + config.cell_size * 0.12 + 0.02
 
+	# Select mode: only show a ghost while dragging the selected module to move it.
+	if _tool == Tool.SELECT:
+		if _moving and not _selected.is_empty() and _hover is Vector2i:
+			var sdef := catalog.by_id(_selected.id)
+			if sdef:
+				var srot: int = _selected.get("rot", 0)
+				var sfp := ShipDesign.rotated_footprint(sdef.footprint, srot)
+				var sorigin: Vector2i = _drag_origin + ((_hover as Vector2i) - _drag_start)
+				var scells := _model.module_footprint_cells(sorigin, sfp)
+				var sok := _can_move_to(scells)
+				var scol := config.ghost_color if sok else config.ghost_invalid_color
+				for c in scells:
+					_add_preview_cell(c, y, scol)
+		return
+
 	if _dragging and _tool != Tool.MODULE and _hover is Vector2i:
 		var x0 := mini(_drag_start.x, _hover.x)
 		var x1 := maxi(_drag_start.x, _hover.x)
@@ -514,9 +645,10 @@ func _update_preview() -> void:
 		if _tool == Tool.MODULE:
 			var def := catalog.by_id(_active_module)
 			if def:
-				var ok := _model.can_place_module(_active_deck, def, _hover)
+				var fp := ShipDesign.rotated_footprint(def.footprint, _place_rot)
+				var ok := _model.can_place_module(_active_deck, def, _hover, _place_rot)
 				var col := config.ghost_color if ok else config.ghost_invalid_color
-				for cell in _model.module_footprint_cells(_hover, def.footprint):
+				for cell in _model.module_footprint_cells(_hover, fp):
 					_add_preview_cell(cell, y, col)
 		else:
 			_add_preview_cell(_hover, y, config.ghost_color)
@@ -581,117 +713,37 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
 
-	# Top toolbar.
-	var top := HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = 12
-	top.offset_right = -12
-	top.offset_top = 10
-	top.add_theme_constant_override("separation", 8)
-	root.add_child(top)
+	# --- Top-left: system menu --------------------------------------------------
+	var menu_btn := _button("☰  Menu")
+	menu_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	menu_btn.offset_left = 12
+	menu_btn.offset_top = 10
+	menu_btn.pressed.connect(_open_menu)
+	root.add_child(menu_btn)
 
-	var back := _button("← Menu")
-	back.pressed.connect(_on_back)
-	top.add_child(back)
-	top.add_child(_sep())
-
-	_tool_buttons[Tool.HULL] = _add_tool(top, "Hull", Tool.HULL)
-	_tool_buttons[Tool.MODULE] = _add_tool(top, "Modules", Tool.MODULE)
-	_tool_buttons[Tool.ROUTE] = _add_tool(top, "Route", Tool.ROUTE)
-	_tool_buttons[Tool.RISER] = _add_tool(top, "Riser", Tool.RISER)
-	top.add_child(_sep())
-
-	_mirror_check = CheckButton.new()
-	_mirror_check.text = "Mirror"
-	_mirror_check.button_pressed = _mirror
-	_mirror_check.focus_mode = Control.FOCUS_NONE
-	_mirror_check.toggled.connect(_set_mirror)
-	top.add_child(_mirror_check)
-
-	if contract:
-		var gate_check := CheckButton.new()
-		gate_check.text = "Gate"
-		gate_check.tooltip_text = "Show the contract gate at the edge of the build area (the size your ship must fit through)"
-		gate_check.focus_mode = Control.FOCUS_NONE
-		gate_check.toggled.connect(_set_gate)
-		top.add_child(gate_check)
-
-	var undo := _button("Undo")
-	undo.pressed.connect(_undo_op)
-	top.add_child(undo)
-	var redo := _button("Redo")
-	redo.pressed.connect(_redo_op)
-	top.add_child(redo)
-
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(spacer)
-
-	if contract:
-		var chip := Label.new()
-		chip.text = "%s  ·  Gate %d×%d  ·  ¤%s" % [contract.title, contract.gate_width, contract.gate_height, _money(contract.budget)]
-		chip.modulate = Color(1, 1, 1, 0.7)
-		chip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		top.add_child(chip)
-		top.add_child(_sep())
-
-	var deliver := _button("Deliver ▸")
-	deliver.pressed.connect(_deliver)
-	top.add_child(deliver)
-
-	var clear := _button("Clear")
-	clear.pressed.connect(_clear_all)
-	top.add_child(clear)
-
-	# Module picker (visible only for the Module tool).
-	_module_picker = HBoxContainer.new()
-	_module_picker.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_module_picker.offset_left = 12
-	_module_picker.offset_top = 48
-	_module_picker.add_theme_constant_override("separation", 6)
-	root.add_child(_module_picker)
-	for def in catalog.modules:
-		if not Career.is_module_unlocked(def):
-			continue  # locked modules are bought in the shop between contracts
-		var b := _button("%s  ¤%s" % [def.display_name, _money(def.cost)])
-		b.pressed.connect(_set_module.bind(def.id))
-		_module_buttons[def.id] = b
-		_module_picker.add_child(b)
-
-	# Deck rail (left): change/add active deck + full-ship view.
-	var rail := VBoxContainer.new()
-	rail.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	rail.offset_left = 12
-	rail.add_theme_constant_override("separation", 6)
-	root.add_child(rail)
-	var up := _button("▲")
-	up.tooltip_text = "Active deck up (adds a deck at the top)"
-	up.pressed.connect(_deck_up)
-	rail.add_child(up)
-	_deck_label = Label.new()
-	_deck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rail.add_child(_deck_label)
-	var down := _button("▼")
-	down.tooltip_text = "Active deck down"
-	down.pressed.connect(_deck_down)
-	rail.add_child(down)
-	var full := CheckButton.new()
-	full.text = "Full"
-	full.tooltip_text = "Show the whole ship (all decks)"
-	full.focus_mode = Control.FOCUS_NONE
-	full.toggled.connect(_toggle_full)
-	rail.add_child(full)
-
-	# Right panel: overlay toggles + stat strip.
+	# --- Top-right: information (status / overlays / diagnostics / deliver) ------
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -210
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	panel.grow_vertical = Control.GROW_DIRECTION_END
 	panel.offset_right = -12
-	panel.offset_top = 48
+	panel.offset_top = 12
+	panel.custom_minimum_size = Vector2(252, 0)
 	root.add_child(panel)
 	var pv := VBoxContainer.new()
 	pv.add_theme_constant_override("separation", 8)
 	panel.add_child(pv)
+
+	if contract:
+		var chip := Label.new()
+		chip.text = contract.title
+		chip.add_theme_font_size_override("font_size", 16)
+		pv.add_child(chip)
+		var sub := Label.new()
+		sub.text = "Gate %d×%d  ·  Budget ¤%s" % [contract.gate_width, contract.gate_height, _money(contract.budget)]
+		sub.modulate = Color(1, 1, 1, 0.6)
+		pv.add_child(sub)
+		pv.add_child(HSeparator.new())
 
 	var ol := Label.new()
 	ol.text = "Overlay"
@@ -705,38 +757,128 @@ func _build_ui() -> void:
 	_overlay_buttons["power"] = _add_overlay(olrow, "Power", "power")
 	_overlay_buttons["heat"] = _add_overlay(olrow, "Heat", "heat")
 
-	var hsep := HSeparator.new()
-	pv.add_child(hsep)
+	pv.add_child(HSeparator.new())
 	_stat_box = VBoxContainer.new()
 	_stat_box.add_theme_constant_override("separation", 6)
 	pv.add_child(_stat_box)
 
-	# Diagnostics bar (bottom).
 	_diag_bar = PanelContainer.new()
-	_diag_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_diag_bar.offset_left = 12
-	_diag_bar.offset_right = -12
-	_diag_bar.offset_top = -52
-	_diag_bar.offset_bottom = -14
-	root.add_child(_diag_bar)
 	var dh := HBoxContainer.new()
-	dh.add_theme_constant_override("separation", 10)
+	dh.add_theme_constant_override("separation", 8)
 	_diag_bar.add_child(dh)
 	_diag_label = Label.new()
 	_diag_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_diag_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_diag_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dh.add_child(_diag_label)
 	_diag_focus = _button("Focus")
 	_diag_focus.pressed.connect(_focus_first_diagnostic)
 	dh.add_child(_diag_focus)
+	pv.add_child(_diag_bar)
 
-	var hint := Label.new()
-	hint.text = "L-drag build · R-drag erase · middle-drag orbit · wheel zoom   |   1/2/3 tools · M mirror · Ctrl+Z/Y undo"
-	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.offset_top = -12
-	hint.modulate = Color(1, 1, 1, 0.5)
-	root.add_child(hint)
+	pv.add_child(HSeparator.new())
+	var deliver := _button("Deliver ▸")
+	deliver.custom_minimum_size = Vector2(0, 38)
+	deliver.pressed.connect(_deliver)
+	pv.add_child(deliver)
+
+	# --- Bottom-left: build cluster (place + edit) ------------------------------
+	var build := VBoxContainer.new()
+	build.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	build.grow_horizontal = Control.GROW_DIRECTION_END
+	build.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	build.offset_left = 12
+	build.offset_bottom = -12
+	build.add_theme_constant_override("separation", 6)
+	root.add_child(build)
+
+	# Module picker flyout (top of the cluster; visible for the Module tool).
+	_module_picker = HBoxContainer.new()
+	_module_picker.add_theme_constant_override("separation", 6)
+	build.add_child(_module_picker)
+	for def in catalog.modules:
+		if not Career.is_module_unlocked(def):
+			continue  # locked modules are bought in the shop between contracts
+		var b := _button("%s  ¤%s" % [def.display_name, _money(def.cost)])
+		b.pressed.connect(_set_module.bind(def.id))
+		_module_buttons[def.id] = b
+		_module_picker.add_child(b)
+	_module_picker.add_child(_sep())
+	var rotate := _button("⟳ Rotate")
+	rotate.tooltip_text = "Rotate the module before placing (R)"
+	rotate.pressed.connect(_rotate_placement)
+	_module_picker.add_child(rotate)
+
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation", 6)
+	build.add_child(tools)
+	_tool_buttons[Tool.SELECT] = _add_tool(tools, "Select", Tool.SELECT)
+	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
+	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Modules", Tool.MODULE)
+	_tool_buttons[Tool.ROUTE] = _add_tool(tools, "Route", Tool.ROUTE)
+	_tool_buttons[Tool.RISER] = _add_tool(tools, "Riser", Tool.RISER)
+
+	var opts := HBoxContainer.new()
+	opts.add_theme_constant_override("separation", 6)
+	build.add_child(opts)
+	_mirror_check = CheckButton.new()
+	_mirror_check.text = "Mirror"
+	_mirror_check.button_pressed = _mirror
+	_mirror_check.focus_mode = Control.FOCUS_NONE
+	_mirror_check.toggled.connect(_set_mirror)
+	opts.add_child(_mirror_check)
+	var undo := _button("Undo")
+	undo.pressed.connect(_undo_op)
+	opts.add_child(undo)
+	var redo := _button("Redo")
+	redo.pressed.connect(_redo_op)
+	opts.add_child(redo)
+	var clear := _button("Clear")
+	clear.pressed.connect(_clear_all)
+	opts.add_child(clear)
+
+	var deckrow := HBoxContainer.new()
+	deckrow.add_theme_constant_override("separation", 6)
+	build.add_child(deckrow)
+	var down := _button("▼")
+	down.tooltip_text = "Active deck down"
+	down.pressed.connect(_deck_down)
+	deckrow.add_child(down)
+	_deck_label = Label.new()
+	_deck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_deck_label.custom_minimum_size = Vector2(42, 0)
+	deckrow.add_child(_deck_label)
+	var up := _button("▲")
+	up.tooltip_text = "Active deck up (adds a deck at the top)"
+	up.pressed.connect(_deck_up)
+	deckrow.add_child(up)
+	var full := CheckButton.new()
+	full.text = "Full"
+	full.tooltip_text = "Show the whole ship (all decks)"
+	full.focus_mode = Control.FOCUS_NONE
+	full.toggled.connect(_toggle_full)
+	deckrow.add_child(full)
+	if contract:
+		var gate_check := CheckButton.new()
+		gate_check.text = "Gate"
+		gate_check.tooltip_text = "Show the contract gate (the size your ship must fit through)"
+		gate_check.focus_mode = Control.FOCUS_NONE
+		gate_check.toggled.connect(_set_gate)
+		deckrow.add_child(gate_check)
+
+	# --- Bottom-right: control hints (mouse glyphs + action) --------------------
+	var hints := HBoxContainer.new()
+	hints.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	hints.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	hints.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	hints.offset_right = -12
+	hints.offset_bottom = -12
+	hints.add_theme_constant_override("separation", 16)
+	root.add_child(hints)
+	hints.add_child(_mouse_hint(MouseGlyph.LEFT, "Select / build · drag to move"))
+	hints.add_child(_mouse_hint(MouseGlyph.RIGHT, "Erase"))
+	hints.add_child(_mouse_hint(MouseGlyph.WHEEL, "Drag orbit · scroll zoom"))
+	hints.add_child(_key_hint("R", "Rotate"))
+	hints.add_child(_key_hint("C", "Copy"))
 
 
 func _add_tool(bar: HBoxContainer, text: String, tool: int) -> Button:
@@ -765,10 +907,50 @@ func _sep() -> Control:
 	return c
 
 
+func _open_menu() -> void:
+	add_child(preload("res://scenes/game_menu.tscn").instantiate())
+
+
+func _mouse_hint(which: int, action: String) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 5)
+	var g := MouseGlyph.new()
+	g.which = which
+	h.add_child(g)
+	h.add_child(_hint_label(action))
+	return h
+
+
+func _key_hint(key: String, action: String) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 5)
+	var cap := Label.new()
+	cap.text = key
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cap.custom_minimum_size = Vector2(18, 0)
+	var pc := PanelContainer.new()
+	pc.add_child(cap)
+	h.add_child(pc)
+	h.add_child(_hint_label(action))
+	return h
+
+
+func _hint_label(action: String) -> Label:
+	var l := Label.new()
+	l.text = action
+	l.modulate = Color(1, 1, 1, 0.7)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return l
+
+
 # --- UI actions -------------------------------------------------------------
 
 func _set_tool(tool: int) -> void:
 	_tool = tool
+	if tool != Tool.SELECT and not _selected.is_empty():
+		_selected = {}
+		_moving = false
+		_render()
 	if tool == Tool.ROUTE and _overlay == "":
 		_set_overlay("power")
 		return

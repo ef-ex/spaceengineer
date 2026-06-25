@@ -42,8 +42,20 @@ func module_footprint_cells(origin: Vector2i, footprint: Vector2i) -> Array:
 	return cells
 
 
-func can_place_module(deck: int, def: ModuleDef, origin: Vector2i) -> bool:
-	for cell in module_footprint_cells(origin, def.footprint):
+static func rotated_footprint(footprint: Vector2i, rot: int) -> Vector2i:
+	# Odd quarter-turns swap width/depth; even leave it. (Modules are boxes, so
+	# only the footprint dimensions change.)
+	return Vector2i(footprint.y, footprint.x) if rot % 2 != 0 else footprint
+
+
+func entry_footprint(entry: Dictionary) -> Vector2i:
+	var def := _catalog.by_id(entry.id) if _catalog else null
+	var fp: Vector2i = def.footprint if def else Vector2i.ONE
+	return rotated_footprint(fp, entry.get("rot", 0))
+
+
+func can_place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> bool:
+	for cell in module_footprint_cells(origin, rotated_footprint(def.footprint, rot)):
 		if not has_hull(deck, cell):
 			return false
 		if not module_at(deck, cell).is_empty():
@@ -51,18 +63,14 @@ func can_place_module(deck: int, def: ModuleDef, origin: Vector2i) -> bool:
 	return true
 
 
-func place_module(deck: int, def: ModuleDef, origin: Vector2i) -> void:
-	modules.get_or_add(deck, []).append({"id": def.id, "origin": origin})
+func place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> void:
+	modules.get_or_add(deck, []).append({"id": def.id, "origin": origin, "rot": rot})
 
 
 func module_at(deck: int, cell: Vector2i) -> Dictionary:
 	# Returns the module entry whose footprint covers `cell`, or {} if none.
-	var catalog := _catalog
 	for entry in modules.get(deck, []):
-		var def := catalog.by_id(entry.id) if catalog else null
-		var fp: Vector2i = def.footprint if def else Vector2i.ONE
-		var rect := Rect2i(entry.origin, fp)
-		if rect.has_point(cell):
+		if Rect2i(entry.origin, entry_footprint(entry)).has_point(cell):
 			return entry
 	return {}
 

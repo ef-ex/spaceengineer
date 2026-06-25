@@ -23,3 +23,13 @@ func test_deck_span_counts_to_highest_deck() -> void:
 	m.set_hull(0, Vector2i(0, 0), true)
 	m.set_hull(2, Vector2i(0, 0), true)
 	assert_int(m.deck_span()).is_equal(3)
+
+
+func test_rotated_module_occupies_swapped_cells() -> void:
+	# Engine footprint is 1x2; a quarter-turn makes it 2x1, so it covers (0,0)+(1,0).
+	assert_that(ShipDesign.rotated_footprint(Vector2i(1, 2), 1)).is_equal(Vector2i(2, 1))
+	var m := ShipDesign.new()
+	m.bind_catalog(CAT)
+	m.place_module(0, CAT.by_id("engine"), Vector2i(0, 0), 1)
+	assert_bool(m.module_at(0, Vector2i(1, 0)).is_empty()).is_false()  # covered
+	assert_bool(m.module_at(0, Vector2i(0, 1)).is_empty()).is_true()   # not covered
