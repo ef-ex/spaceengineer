@@ -26,8 +26,15 @@ The player defines which grid tiles make up the ship — maximum artistic freedo
   feasible tool, not freehand painting.)
 - **Shared primitive: the "valid cell" test** — *does the shape cover ≥ threshold of this cell?*
   Built once; every shape tool (rectangle, spline, future freeform) feeds the same validator.
+- **Vision endpoint: procedural hull pieces** (grid-defining, deformable) — see the build model in
+  `ships_and_stations_design.md`. They simply *emit* valid cells.
 
 Spline is a fast-follow, not day-one — the prototype proves the loop with rectangle selection first.
+
+> **Forward-compat invariant:** the canonical input to interior + function is always **"hull = a set
+> of occupied grid cells"** (`ShipDesign.hull`), regardless of which tool authored them. Keep this and
+> nothing built now blocks the spline/procedural-pieces vision — each tool is just a different way to
+> produce cells.
 
 ## Class = size, NOT grid scale
 
@@ -84,8 +91,29 @@ of the ship. Laying out a clean, working network is the puzzle.
 - **Consequence model:** connectivity + logical proximity, NOT adjacency bonus tables. See
   `ships_and_stations_design.md`.
 
+## Visuals — shading, colour, preview meshes (prototype)
+
+Nothing exists yet shading-wise; build it **cheap (no authored art)**. This serves the demand test
+("a ship I'm proud of"), so plain boxes are a real problem to fix.
+
+- **Shading pipeline:** one cached `StandardMaterial3D` factory shared by the designer and
+  `ship_renderer.gd` (albedo / metallic / roughness / emission per surface, driven by data); bring the
+  delivery view's filmic lighting into the designer too.
+- **Colour (in scope — built-in `ColorPickerButton`):** a **hull base colour** + **accent**, stored on
+  `ShipDesign` (serialised, so it survives undo/save and rides into delivery). Modules keep functional
+  colours so the interior stays readable.
+- **Preview meshes (in scope, cheap):** replace identical boxes with **data-driven per-module shape
+  recipes** (reactor = housing + glowing core, engine = body + nozzle, radiator = finned panel, …)
+  composed from primitives; plus hull bevel/paneling. The recipe field later swaps to real meshes.
+- **Build order:** shading+lighting → colour → shape recipes → hull paneling (each independently
+  shippable).
+
+Advanced colour tools, textures/materials, and authored/freeform meshes are vision (build model in
+`ships_and_stations_design.md`; deferred per `prototype_scope.md`).
+
 ## Prototype subset
 
 Drake only; rectangle/cell shaping; place a handful of interior modules; **manually route power +
-heat** (add O2/water only if cheap); precalc pass/fail + diagnostics; gate-fit check. Splines,
-blueprints, multiple classes, and the full network set are vision, not prototype.
+heat** (add O2/water only if cheap); precalc pass/fail + diagnostics; gate-fit check; flat-colour
+customization. Splines, procedural hull pieces, blueprints, multiple classes, textures, and the full
+network set are vision, not prototype.

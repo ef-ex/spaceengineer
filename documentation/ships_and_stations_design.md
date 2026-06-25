@@ -49,6 +49,33 @@ ugly ships" problem: the aesthetic layer and the puzzle layer are separated, so 
 - Because it's internal, it never needs to look pretty — so a rich placement puzzle here does
   NOT compromise the exterior aesthetic.
 
+### The build model — four systems that realise the two layers (vision)
+The two layers above are the *principle* (separate aesthetic from function). The full game realises
+them with **four systems**, foundation first:
+
+1. **Procedural hull pieces (the foundation).** A library of grid-defining, controllably-deformable
+   hull pieces. Placing/shaping them authors the **grid**, the **outer hull**, and the **interior room
+   volumes** in one act — so there is no separate exterior↔interior reconciliation step. Each piece has
+   a **logical grid footprint** (integer cells → drives interior + function, stays simple) and a
+   **procedural visual skin** (taper/curve/bevel → the exterior, what stops ships reading as blocks).
+   This beats Space Engineers/Avorion because you deform *well-authored hull segments* over the grid,
+   not cubes. **Deformation must stay grid-preserving.**
+2. **Decorative objects.** Freely placed props (some procedurally adjustable). Includes **posed
+   puppets** — *static* crew figures for scale/life (no animation/pathing; animated NPCs are far later).
+3. **Custom modeling tools.** Freeform shapes for bespoke bits the piece library doesn't cover.
+4. **Functional parts.** The modules that make the ship work (the prototype's module/network puzzle).
+
+**Interior architecture (vision):** walls / doors / windows to form rooms, and stairs/elevators
+between decks. (Risers already serve as the logical elevator for the networks.)
+
+**Hard principle — no first-person editing, ever.** All building is in free orbit camera; forcing
+artistry through an FP camera (the Dual Universe gripe) is banned. The piece library's authoring is the
+make-or-break, not the tech (cf. Juno/Spore's reshapeable parts).
+
+> Vision, not prototype. The prototype stays cell-painting + box/recipe modules (`prototype_scope.md`).
+> `ship_designer_spec.md` holds the shape-tool ladder and the forward-compat rule that keeps this
+> reachable.
+
 ---
 
 ## The interior puzzle = connectivity & proximity, NOT bonus tables

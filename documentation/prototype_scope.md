@@ -76,10 +76,12 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
 
 ## Full-game vision parking lot (NOT prototype)
 
-Recorded so they aren't lost — see `game_vision.md` for the coherent picture:
-ship tester + hall of fame, art tools (spline hull, copy tools, advanced/complementary color
-pickers, texture projection), turntable/video capture, the Goliath/Titan class system, the
-money→shipyard / reputation→clients+patterns progression, awards (e.g. max-rating streaks → luxury
-clients), the **generation-ship finale** (bridging into Galaxia's panspermia), the wiki-based
-tutorial, and **weapon modules** (cosmetic/structural turrets/cannons + a contract dimension — see
-`game_vision.md`). Combat-as-gameplay stays cut.
+Recorded so they aren't lost — see `game_vision.md` and `ships_and_stations_design.md` for the
+coherent picture: ship tester + hall of fame, the **four-system build model** (procedural hull pieces,
+decorative objects incl. **posed puppets**, custom modeling tools) and art tools (spline hull, copy
+tools, advanced/complementary color pickers, texture projection), turntable/video capture, the
+Goliath/Titan class system, the money→shipyard / reputation→clients+patterns progression,
+**speculative building + resale**, reviews & awards → reputation → clients + tech, the
+**generation-ship finale** (bridging into Galaxia's panspermia), the wiki-based tutorial, interior
+architecture (walls/doors/rooms, stairs/elevators), and **weapon modules** (cosmetic/structural
+turrets/cannons + a contract dimension). Combat-as-gameplay stays cut.

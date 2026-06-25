@@ -2,8 +2,9 @@
 
 **Status:** Active vision (2026-06-22).
 **Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
-**Read-first doc.** Detail lives in `ship_designer_spec.md`, `mission_generator.md`,
-`ships_and_stations_design.md`, `prototype_scope.md`, `open_questions.md`.
+**Read-first doc.** Detail lives in `ship_designer_spec.md` (designer mechanics + visuals),
+`mission_generator.md`, `ships_and_stations_design.md` (build model + interior),
+`prototype_scope.md` (scope + vision parking lot), `open_questions.md`.
 
 ---
 
@@ -40,6 +41,13 @@ gate, is functional) → get paid + rated → spend money / earn reputation → 
 
 Prestige milestones (e.g. **max rating 3× in a row**) grant **awards**. Awards **attract luxury /
 high-tier clients** and are the visible rungs of the prestige ladder toward the finale.
+
+## Speculative building & reviews (vision)
+
+Beyond commissions, you can **build ships on spec** (no client) — paying the build cost **up front**,
+gated by your cash — and **put them up for sale**. Both delivered and sold ships earn **client reviews**
+and **award nominations** that feed reputation; higher reputation brings **better clients and more tech
+to buy**. (New economy loop — pricing / who-buys / unsold-upkeep TBD; see `open_questions.md`.)
 
 ## End goal — the generation ship (bridge to Galaxia)
 
