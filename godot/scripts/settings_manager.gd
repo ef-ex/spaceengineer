@@ -6,8 +6,11 @@ const CONFIG_PATH := "user://settings.cfg"
 const AUDIO_BUSES := ["Master", "Music", "SFX"]
 
 var window_mode: int = DisplayServer.WINDOW_MODE_WINDOWED
-var resolution: Vector2i = Vector2i(1280, 720)
+var resolution: Vector2i = Vector2i(2560, 1440)
 var vsync_enabled: bool = true
+## Camera pitch direction. false = DCC convention (drag down -> see top);
+## true = free-look/inverted. Read live by the designer; no apply step needed.
+var invert_camera_y: bool = false
 var volumes := {"Master": 1.0, "Music": 1.0, "SFX": 1.0}
 
 
@@ -65,6 +68,7 @@ func save_settings() -> void:
 	cfg.set_value("video", "resolution_x", resolution.x)
 	cfg.set_value("video", "resolution_y", resolution.y)
 	cfg.set_value("video", "vsync", vsync_enabled)
+	cfg.set_value("video", "invert_camera_y", invert_camera_y)
 	for bus in volumes:
 		cfg.set_value("audio", bus, volumes[bus])
 	cfg.save(CONFIG_PATH)
@@ -79,5 +83,6 @@ func load_settings() -> void:
 		cfg.get_value("video", "resolution_x", resolution.x),
 		cfg.get_value("video", "resolution_y", resolution.y))
 	vsync_enabled = cfg.get_value("video", "vsync", vsync_enabled)
+	invert_camera_y = cfg.get_value("video", "invert_camera_y", invert_camera_y)
 	for bus in volumes:
 		volumes[bus] = cfg.get_value("audio", bus, volumes[bus])

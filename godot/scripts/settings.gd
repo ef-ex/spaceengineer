@@ -9,6 +9,7 @@ const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1600, 900),
 	Vector2i(1920, 1080),
 	Vector2i(2560, 1440),
+	Vector2i(3840, 2160),
 ]
 
 var _sm: Node
@@ -41,6 +42,7 @@ func _ready() -> void:
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(tabs)
 	tabs.add_child(_build_video_tab())
+	tabs.add_child(_build_controls_tab())
 	tabs.add_child(_build_audio_tab())
 
 	var back := Button.new()
@@ -86,6 +88,23 @@ func _build_video_tab() -> Control:
 	vsync.button_pressed = _sm.vsync_enabled
 	vsync.toggled.connect(_on_vsync_toggled)
 	grid.add_child(vsync)
+
+	return grid
+
+
+func _build_controls_tab() -> Control:
+	var grid := GridContainer.new()
+	grid.name = "Controls"
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 28)
+	grid.add_theme_constant_override("v_separation", 18)
+
+	grid.add_child(_field_label("Invert camera Y"))
+	var invert := CheckButton.new()
+	invert.button_pressed = _sm.invert_camera_y
+	invert.tooltip_text = "Off: drag down tilts up to the top (3D-software style). On: free-look style."
+	invert.toggled.connect(_on_invert_toggled)
+	grid.add_child(invert)
 
 	return grid
 
@@ -136,6 +155,10 @@ func _on_res_selected(index: int) -> void:
 func _on_vsync_toggled(on: bool) -> void:
 	_sm.vsync_enabled = on
 	_sm.apply_video()
+
+
+func _on_invert_toggled(on: bool) -> void:
+	_sm.invert_camera_y = on   # read live by the designer; persisted on Back
 
 
 func _on_volume_changed(value: float, bus: String, label: Label) -> void:
