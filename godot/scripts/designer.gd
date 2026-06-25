@@ -5,6 +5,7 @@ extends Node3D
 ## network coloured by the solver result. All feel/visual values live in `config`.
 
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
 enum Tool { HULL, MODULE, ROUTE, RISER }
@@ -55,6 +56,7 @@ var _diag_label: Label
 var _diag_focus: Button
 var _mirror_check: CheckButton
 var _deck_label: Label
+var _deliver_dialog: AcceptDialog
 
 
 func _ready() -> void:
@@ -62,6 +64,10 @@ func _ready() -> void:
 		config = DesignerConfig.new()
 	if catalog == null:
 		catalog = ModuleCatalog.new()
+	# The active contract comes from the career run; the scene's @export is only a
+	# fallback for opening designer.tscn standalone.
+	if Career.current_contract() != null:
+		contract = Career.current_contract()
 	_model = ShipDesign.new()
 	_model.bind_catalog(catalog)
 	if not catalog.modules.is_empty():
@@ -549,6 +555,10 @@ func _build_ui() -> void:
 		top.add_child(chip)
 		top.add_child(_sep())
 
+	var deliver := _button("Deliver ▸")
+	deliver.pressed.connect(_deliver)
+	top.add_child(deliver)
+
 	var clear := _button("Clear")
 	clear.pressed.connect(_clear_all)
 	top.add_child(clear)
@@ -561,6 +571,8 @@ func _build_ui() -> void:
 	_module_picker.add_theme_constant_override("separation", 6)
 	root.add_child(_module_picker)
 	for def in catalog.modules:
+		if not Career.is_module_unlocked(def):
+			continue  # locked modules are bought in the shop between contracts
 		var b := _button("%s  ¤%s" % [def.display_name, _money(def.cost)])
 		b.pressed.connect(_set_module.bind(def.id))
 		_module_buttons[def.id] = b
@@ -871,6 +883,26 @@ func _money(v: int) -> String:
 
 func _num(v: float) -> String:
 	return str(roundi(v)) if absf(v - roundi(v)) < 0.05 else str(snappedf(v, 0.1))
+
+
+func _deliver() -> void:
+	if contract == null:
+		return
+	var check := DeliveryCheck.validate(_model, contract, _results)
+	if not check.ok:
+		if _deliver_dialog == null:
+			_deliver_dialog = AcceptDialog.new()
+			_deliver_dialog.title = "Not ready to deliver"
+			add_child(_deliver_dialog)
+		_deliver_dialog.dialog_text = "\n".join(check.reasons)
+		_deliver_dialog.popup_centered()
+		return
+	# Hand a detached copy of the design to the delivery scene.
+	var snapshot := ShipDesign.new()
+	snapshot.bind_catalog(catalog)
+	snapshot.from_dict(_model.to_dict())
+	Career.pending_design = snapshot
+	get_tree().change_scene_to_file(DELIVERY_SCENE)
 
 
 func _on_back() -> void:

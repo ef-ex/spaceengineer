@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ModuleCatalog" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="ModuleCatalog" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://resources/module_def.gd" id="1"]
 [ext_resource type="Script" path="res://resources/module_catalog.gd" id="2"]
@@ -81,6 +81,34 @@ heat_produced = 0.0
 heat_dissipated = 0.0
 role = "cargo"
 
+[sub_resource type="Resource" id="drill"]
+script = ExtResource("1")
+id = "drill"
+display_name = "Mining drill"
+footprint = Vector2i(2, 1)
+color = Color(0.78, 0.55, 0.18, 1)
+cost = 7000
+unlock_price = 6000
+power_produced = 0.0
+power_consumed = 3.0
+heat_produced = 4.0
+heat_dissipated = 0.0
+role = "mining"
+
+[sub_resource type="Resource" id="sensor"]
+script = ExtResource("1")
+id = "sensor"
+display_name = "Sensor array"
+footprint = Vector2i(1, 1)
+color = Color(0.36, 0.78, 0.78, 1)
+cost = 6000
+unlock_price = 5000
+power_produced = 0.0
+power_consumed = 2.0
+heat_produced = 1.0
+heat_dissipated = 0.0
+role = "sensor"
+
 [resource]
 script = ExtResource("2")
-modules = [SubResource("reactor"), SubResource("engine"), SubResource("bridge"), SubResource("quarters"), SubResource("radiator"), SubResource("cargo")]
+modules = [SubResource("reactor"), SubResource("engine"), SubResource("bridge"), SubResource("quarters"), SubResource("radiator"), SubResource("cargo"), SubResource("drill"), SubResource("sensor")]

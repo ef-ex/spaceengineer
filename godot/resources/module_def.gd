@@ -11,6 +11,9 @@ extends Resource
 @export var footprint: Vector2i = Vector2i.ONE
 @export var color: Color = Color(0.6, 0.65, 0.75)
 @export var cost: int = 0
+## One-time shop price to unlock this module. 0 = available from the start.
+## Modules with unlock_price > 0 stay hidden in the designer until bought.
+@export var unlock_price: int = 0
 
 @export_group("Power network")
 @export var power_produced: float = 0.0

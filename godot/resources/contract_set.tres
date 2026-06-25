@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="ContractSet" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://resources/contract.gd" id="1"]
+[ext_resource type="Script" path="res://resources/contract_set.gd" id="2"]
+
+[sub_resource type="Resource" id="c1"]
+script = ExtResource("1")
+title = "Local hop transport"
+client = "Tycho Shuttle Lines"
+purpose = "A no-frills crew runabout for the inner belt. Just make it fly."
+budget = 45000
+reward = 20000
+gate_width = 8
+gate_height = 2
+required_roles = Array[String](["powerplant", "bridge", "propulsion"])
+
+[sub_resource type="Resource" id="c2"]
+script = ExtResource("1")
+title = "Ore-run cargo hauler"
+client = "Belt Co-op"
+purpose = "Haul refined ore between platforms. Needs a real cargo hold and must clear the loading gate."
+budget = 50000
+reward = 28000
+gate_width = 6
+gate_height = 2
+required_roles = Array[String](["powerplant", "bridge", "propulsion", "cargo"])
+
+[sub_resource type="Resource" id="c3"]
+script = ExtResource("1")
+title = "Asteroid mining tug"
+client = "Belt Co-op"
+purpose = "Chew rock in tight asteroid spacing. Fit a mining drill through a narrow gate."
+budget = 60000
+reward = 40000
+gate_width = 5
+gate_height = 2
+required_roles = Array[String](["powerplant", "bridge", "propulsion", "mining"])
+
+[sub_resource type="Resource" id="c4"]
+script = ExtResource("1")
+title = "Deep-field survey scout"
+client = "Cartography Guild"
+purpose = "Long-range survey with a sensor array and crew berth. Go tall, not wide."
+budget = 70000
+reward = 55000
+gate_width = 4
+gate_height = 3
+required_roles = Array[String](["powerplant", "bridge", "propulsion", "sensor", "crew"])
+
+[sub_resource type="Resource" id="c5"]
+script = ExtResource("1")
+title = "Courier (tight gate)"
+client = "Prismatic Express"
+purpose = "Squeeze a crewed courier through the smallest gate in the registry."
+budget = 40000
+reward = 35000
+gate_width = 3
+gate_height = 2
+required_roles = Array[String](["powerplant", "bridge", "propulsion", "crew"])
+
+[resource]
+script = ExtResource("2")
+contracts = [SubResource("c1"), SubResource("c2"), SubResource("c3"), SubResource("c4"), SubResource("c5")]

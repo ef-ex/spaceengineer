@@ -4,8 +4,12 @@ extends Resource
 
 @export var title: String = ""
 @export var client: String = ""
+## One-line statement of what the ship is for (shown in the briefing).
+@export_multiline var purpose: String = ""
 ## Spend ceiling (sum of module costs must not exceed this).
 @export var budget: int = 0
+## Base payout on delivery, before the rating multiplier (see rating.gd).
+@export var reward: int = 0
 
 @export_group("Gate")
 ## The ship's cross-section (its narrower horizontal extent × deck count) must

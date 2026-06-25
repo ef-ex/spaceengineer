@@ -35,7 +35,7 @@ func _ready() -> void:
 	vb.add_child(_spacer(28))
 
 	var play := _menu_button("Play")
-	play.pressed.connect(_change_scene.bind(DESIGNER_SCENE))
+	play.pressed.connect(_on_play)
 	vb.add_child(play)
 
 	var settings := _menu_button("Settings")
@@ -58,6 +58,11 @@ func _spacer(h: int) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
 	return c
+
+
+func _on_play() -> void:
+	Career.new_game()
+	get_tree().change_scene_to_file(DESIGNER_SCENE)
 
 
 func _change_scene(path: String) -> void:
