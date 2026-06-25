@@ -25,7 +25,30 @@ static func build(model: ShipDesign, config: DesignerConfig, catalog: ModuleCata
 				y + slab + size.y * 0.5,
 				(entry.origin.y + fp.y * 0.5) * config.cell_size)
 			_box(root, c, size, def.color)
+	add_walls(root, model, config, deck_count)
 	return root
+
+
+static func add_walls(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int) -> void:
+	# A wall on every hull edge that faces open space, rising slab-to-ceiling, so
+	# the floor plan reads as an enclosed volume. Shared by the full-ship + delivery
+	# views. Edit-time per-deck view stays wall-free for unobstructed placement.
+	var slab := config.cell_size * 0.12
+	var wh := config.deck_height - slab
+	if wh <= 0.0:
+		return
+	var t := config.wall_thickness
+	var half := config.cell_size * 0.5
+	for d in range(deck_count):
+		var y := d * config.deck_height + slab + wh * 0.5
+		for cell in model.hull_cells(d):
+			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+				if model.has_hull(d, cell + dir):
+					continue
+				var cx: float = (cell.x + 0.5) * config.cell_size + dir.x * half
+				var cz: float = (cell.y + 0.5) * config.cell_size + dir.y * half
+				var size := Vector3(t, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, t)
+				_box(parent, Vector3(cx, y, cz), size, config.wall_color)
 
 
 static func center(model: ShipDesign, config: DesignerConfig, deck_count: int) -> Vector3:

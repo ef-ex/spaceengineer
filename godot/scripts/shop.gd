@@ -4,7 +4,7 @@ extends Control
 ## tech tree, no tiers — just buy-to-unlock. Continue resumes the run.
 
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const DESIGNER_SCENE := "res://scenes/designer.tscn"
+const BRIEFING_SCENE := "res://scenes/briefing.tscn"
 
 var _money_label: Label
 var _list: VBoxContainer
@@ -90,7 +90,7 @@ func _on_continue() -> void:
 	if Career.is_run_complete():
 		get_tree().change_scene_to_file(MENU_SCENE)
 	else:
-		get_tree().change_scene_to_file(DESIGNER_SCENE)
+		get_tree().change_scene_to_file(BRIEFING_SCENE)
 
 
 func _money(v: int) -> String:

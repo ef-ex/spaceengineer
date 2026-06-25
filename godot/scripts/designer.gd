@@ -22,6 +22,7 @@ var _active_deck: int = 0
 var _deck_count: int = 1
 var _mirror := false
 var _full_view := false
+var _gate_proxy: Node3D   # toggleable size reference for the contract gate
 
 var _undo: Array = []
 var _redo: Array = []
@@ -85,6 +86,8 @@ func _ready() -> void:
 	add_child(_world)
 	_preview = Node3D.new()
 	add_child(_preview)
+	_build_gate_proxy()
+	_build_forward_indicator()
 	_build_ui()
 	_update_camera()
 	_solve()
@@ -112,6 +115,70 @@ func _setup_world() -> void:
 
 	_cam = Camera3D.new()
 	add_child(_cam)
+
+
+func _build_gate_proxy() -> void:
+	if contract == null:
+		return
+	_gate_proxy = GateProxy.build(contract.gate_width, contract.gate_height, config, true)
+	# Stand it just past the +X (forward) edge, centred across Z, sitting on deck 0
+	# — the ship flies forward through this opening on delivery.
+	var extent := config.grid_size * config.cell_size
+	var inner_h := contract.gate_height * config.deck_height
+	_gate_proxy.position = Vector3(extent + 2.0 * config.cell_size, inner_h * 0.5, extent * 0.5)
+	_gate_proxy.visible = false
+	add_child(_gate_proxy)
+
+
+func _set_gate(on: bool) -> void:
+	if _gate_proxy:
+		_gate_proxy.visible = on
+
+
+func _build_forward_indicator() -> void:
+	# A flat arrow on the floor pointing along +X (the ship's forward / fly-through
+	# direction) plus a FORWARD label, so the player always knows the nose.
+	var extent := config.grid_size * config.cell_size
+	var z := extent * 0.5
+	var y := 0.02
+	var x0 := extent + 0.6 * config.cell_size
+	var x1 := extent + 3.2 * config.cell_size
+	var xm := lerpf(x0, x1, 0.6)
+	var ws := 0.5 * config.cell_size   # shaft half-width
+	var wh := 1.4 * config.cell_size   # head half-width
+
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED   # visible from below too
+	mat.albedo_color = Color(0.36, 0.62, 0.86, 0.55)
+
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, mat)
+	# shaft (two triangles)
+	_tri(im, Vector3(x0, y, z - ws), Vector3(xm, y, z - ws), Vector3(xm, y, z + ws))
+	_tri(im, Vector3(x0, y, z - ws), Vector3(xm, y, z + ws), Vector3(x0, y, z + ws))
+	# head
+	_tri(im, Vector3(xm, y, z - wh), Vector3(x1, y, z), Vector3(xm, y, z + wh))
+	im.surface_end()
+	var mi := MeshInstance3D.new()
+	mi.mesh = im
+	add_child(mi)
+
+	var label := Label3D.new()
+	label.text = "FORWARD"
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.01
+	label.modulate = Color(0.6, 0.78, 1.0)
+	label.outline_size = 4
+	label.position = Vector3(x1 + 0.6, 0.6, z)
+	add_child(label)
+
+
+func _tri(im: ImmediateMesh, a: Vector3, b: Vector3, c: Vector3) -> void:
+	im.surface_add_vertex(a)
+	im.surface_add_vertex(b)
+	im.surface_add_vertex(c)
 
 
 func _build_grid_lines() -> void:
@@ -163,8 +230,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				_paint_button(false, event)
 	elif event is InputEventMouseMotion:
 		if _orbiting:
+			# Default matches DCC software (drag down -> tilt up to the top); the
+			# Settings "Invert camera Y" flips it for free-look-style players.
+			var pitch_sign := -1.0 if SettingsManager.invert_camera_y else 1.0
 			_yaw -= event.relative.x * config.orbit_speed
-			_pitch -= event.relative.y * config.orbit_speed
+			_pitch += pitch_sign * event.relative.y * config.orbit_speed
 			_update_camera()
 		else:
 			_hover = _resolve_cell(event.position)
@@ -354,6 +424,8 @@ func _render() -> void:
 	if _full_view:
 		for d in range(_deck_count):
 			_render_deck(d, false)
+		if _overlay == "":
+			ShipRenderer.add_walls(_world, _model, config, _deck_count)
 	else:
 		if _active_deck - 1 >= 0:
 			_render_deck(_active_deck - 1, true)  # ghost the deck below for context
@@ -535,6 +607,14 @@ func _build_ui() -> void:
 	_mirror_check.focus_mode = Control.FOCUS_NONE
 	_mirror_check.toggled.connect(_set_mirror)
 	top.add_child(_mirror_check)
+
+	if contract:
+		var gate_check := CheckButton.new()
+		gate_check.text = "Gate"
+		gate_check.tooltip_text = "Show the contract gate at the edge of the build area (the size your ship must fit through)"
+		gate_check.focus_mode = Control.FOCUS_NONE
+		gate_check.toggled.connect(_set_gate)
+		top.add_child(gate_check)
 
 	var undo := _button("Undo")
 	undo.pressed.connect(_undo_op)
@@ -852,25 +932,10 @@ func _count_modules() -> int:
 
 
 func _ship_cross_section() -> Dictionary:
-	# Cross-section threaded through the gate = narrower horizontal extent × decks.
-	var minx := 99999
-	var maxx := -99999
-	var minz := 99999
-	var maxz := -99999
-	var decks := {}
-	for deck in _model.hull:
-		for cell in _model.hull[deck]:
-			minx = mini(minx, cell.x)
-			maxx = maxi(maxx, cell.x)
-			minz = mini(minz, cell.y)
-			maxz = maxi(maxz, cell.y)
-			decks[deck] = true
-	if decks.is_empty():
-		return {"width": 0, "decks": 0, "fits": contract == null}
-	var width := mini(maxx - minx + 1, maxz - minz + 1)
-	var dcount := decks.size()
-	var fits := contract == null or (width <= contract.gate_width and dcount <= contract.gate_height)
-	return {"width": width, "decks": dcount, "fits": fits}
+	# Beam (across forward) × decks, plus whether it clears the contract gate.
+	var cs := _model.cross_section()
+	var fits: bool = contract == null or (cs.width > 0 and cs.width <= contract.gate_width and cs.decks <= contract.gate_height)
+	return {"width": cs.width, "decks": cs.decks, "fits": fits}
 
 
 func _network_label(net: String) -> String:

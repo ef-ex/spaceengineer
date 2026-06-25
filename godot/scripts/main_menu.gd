@@ -2,7 +2,7 @@ extends Control
 ## Main menu: Play (-> Designer), Settings, Quit. UI built in code.
 
 const SETTINGS_SCENE := "res://scenes/settings.tscn"
-const DESIGNER_SCENE := "res://scenes/designer.tscn"
+const BRIEFING_SCENE := "res://scenes/briefing.tscn"
 
 
 func _ready() -> void:
@@ -62,7 +62,7 @@ func _spacer(h: int) -> Control:
 
 func _on_play() -> void:
 	Career.new_game()
-	get_tree().change_scene_to_file(DESIGNER_SCENE)
+	get_tree().change_scene_to_file(BRIEFING_SCENE)
 
 
 func _change_scene(path: String) -> void:

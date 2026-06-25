@@ -18,8 +18,10 @@ extends Resource
 @export var orbit_initial_pitch: float = 0.9
 ## Starting distance from the grid centre.
 @export var orbit_initial_distance: float = 24.0
-@export var orbit_min_pitch: float = 0.2
-@export var orbit_max_pitch: float = 1.45
+# Near-full vertical range so the ship can be admired from any angle (just shy of
+# the poles, where look_at(UP) would flip). Negative = looking up from below.
+@export var orbit_min_pitch: float = -1.5
+@export var orbit_max_pitch: float = 1.5
 @export var orbit_min_distance: float = 6.0
 @export var orbit_max_distance: float = 60.0
 ## Orbit sensitivity, radians per pixel of right-drag.
@@ -39,14 +41,19 @@ extends Resource
 @export var hull_tile_color: Color = Color(0.55, 0.70, 0.95)
 @export var hull_tile_metallic: float = 0.2
 @export var hull_tile_roughness: float = 0.6
+## Perimeter walls drawn on hull edges that face open space (full-ship + delivery
+## views), so the ship reads as a volume rather than bare floors.
+@export var wall_color: Color = Color(0.42, 0.52, 0.70)
+@export var wall_thickness: float = 0.08
 ## Translucent valid-placement preview under the cursor.
 @export var ghost_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 ## Translucent preview when the cursor placement is invalid.
 @export var ghost_invalid_color: Color = Color(0.85, 0.23, 0.23, 0.30)
 
 @export_group("Decks")
-## Vertical world spacing between decks (visual only).
-@export var deck_height: float = 3.0
+## Vertical world spacing between decks (floor-to-floor). Keep close to cell_size
+## so stacked decks read as floors, not as a tall gap.
+@export var deck_height: float = 1.2
 
 @export_group("Overlay & feedback")
 ## Flat colour hull/modules fade to when a network overlay is active, so the

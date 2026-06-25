@@ -6,7 +6,7 @@ extends Node3D
 ## as the "present the build" view: orbit camera, key lighting, screenshot.
 
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const DESIGNER_SCENE := "res://scenes/designer.tscn"
+const BRIEFING_SCENE := "res://scenes/briefing.tscn"
 const SHOP_SCENE := "res://scenes/shop.tscn"
 const CONFIG: DesignerConfig = preload("res://resources/designer_config.tres")
 const CATALOG: ModuleCatalog = preload("res://resources/module_catalog.tres")
@@ -79,75 +79,29 @@ func _build_ship_and_gate() -> void:
 	var ship := ShipRenderer.build(_design, CONFIG, CATALOG, deck_span)
 	var center := ShipRenderer.center(_design, CONFIG, deck_span)
 
-	# Orient the ship so its LONGER horizontal axis is the travel axis (X); the
-	# shorter extent (== cross_section width, already validated <= gate_width)
-	# then faces the gate aperture, so a passing ship never visually clips.
-	var ext := _hull_extent_cells()
+	# Forward is +X: the ship flies nose-first as built, so its beam (Z, validated
+	# <= gate_width) faces the aperture. No rotation — orientation is the player's.
 	_travel = Node3D.new()
-	var spin := Node3D.new()
-	if ext.y > ext.x:
-		spin.rotation.y = PI * 0.5
-	spin.add_child(ship)
-	ship.position = -center           # centre the ship on the spin pivot (y too)
-	_travel.add_child(spin)
+	ship.position = -center           # centre the ship on the travel pivot
+	_travel.add_child(ship)
 	add_child(_travel)
 
 	_target = Vector3.ZERO
-	_build_gate()
+	add_child(GateProxy.build(_contract.gate_width, _contract.gate_height, CONFIG))
 	_travel.position = Vector3(-_ship_half_length() - 6.0, 0, 0)
 
 
-func _build_gate() -> void:
-	# A rectangular aperture in the Y-Z plane at X=0, sized to the contract gate.
-	var gate := Node3D.new()
-	add_child(gate)
-	var inner_w: float = _contract.gate_width * CONFIG.cell_size       # along Z
-	var inner_h: float = _contract.gate_height * CONFIG.deck_height    # along Y
-	var t := 0.6
-	var pad := 0.4
-	var w := inner_w + pad * 2.0
-	var h := inner_h + pad * 2.0
-	var col := Color(0.55, 0.6, 0.7)
-	_gate_bar(gate, Vector3(0, h * 0.5 + t * 0.5, 0), Vector3(t, t, w + t * 2.0), col)   # top
-	_gate_bar(gate, Vector3(0, -h * 0.5 - t * 0.5, 0), Vector3(t, t, w + t * 2.0), col)  # bottom
-	_gate_bar(gate, Vector3(0, 0, w * 0.5 + t * 0.5), Vector3(t, h, t), col)             # +Z
-	_gate_bar(gate, Vector3(0, 0, -w * 0.5 - t * 0.5), Vector3(t, h, t), col)            # -Z
-
-
-func _gate_bar(parent: Node3D, pos: Vector3, size: Vector3, col: Color) -> void:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	m.metallic = 0.7
-	m.roughness = 0.35
-	m.emission_enabled = true
-	m.emission = Color(0.15, 0.35, 0.6)
-	m.emission_energy_multiplier = 0.4
-	mi.material_override = m
-	mi.position = pos
-	parent.add_child(mi)
-
-
-func _hull_extent_cells() -> Vector2i:
+func _ship_half_length() -> float:
+	# Half the ship's length along the travel axis (forward, +X).
 	var minx := 0x7fffffff
 	var maxx := -0x7fffffff
-	var minz := 0x7fffffff
-	var maxz := -0x7fffffff
 	for d in range(_design.deck_span()):
 		for cell in _design.hull_cells(d):
-			minx = mini(minx, cell.x); maxx = maxi(maxx, cell.x)
-			minz = mini(minz, cell.y); maxz = maxi(maxz, cell.y)
+			minx = mini(minx, cell.x)
+			maxx = maxi(maxx, cell.x)
 	if minx > maxx:
-		return Vector2i.ONE
-	return Vector2i(maxx - minx + 1, maxz - minz + 1)
-
-
-func _ship_half_length() -> float:
-	var ext := _hull_extent_cells()
-	return maxi(ext.x, ext.y) * CONFIG.cell_size * 0.5
+		return 1.0
+	return (maxx - minx + 1) * CONFIG.cell_size * 0.5
 
 
 # --- Fly-through + camera ---------------------------------------------------
@@ -286,7 +240,7 @@ func _on_next() -> void:
 	if Career.is_run_complete():
 		get_tree().change_scene_to_file(MENU_SCENE)
 	else:
-		get_tree().change_scene_to_file(DESIGNER_SCENE)
+		get_tree().change_scene_to_file(BRIEFING_SCENE)
 
 
 func _on_shop() -> void:

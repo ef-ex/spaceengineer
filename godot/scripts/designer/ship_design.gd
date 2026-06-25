@@ -129,24 +129,21 @@ func deck_span() -> int:
 
 
 func cross_section() -> Dictionary:
-	# The silhouette threaded through a gate: the NARROWER horizontal extent of the
-	# hull (rewarding long, thin ships) × the number of occupied decks. Geometry
-	# only — gate-fit is checked against a contract by the caller. Empty -> zeroes.
-	var minx := 0x7fffffff
-	var maxx := -0x7fffffff
+	# The silhouette threaded through a gate: the ship's BEAM (extent across Z,
+	# perpendicular to the fixed forward axis +X) × the number of occupied decks.
+	# Forward is +X, so length runs along X and is unconstrained by the gate; only
+	# beam and height must fit. Geometry only — gate-fit is checked by the caller.
 	var minz := 0x7fffffff
 	var maxz := -0x7fffffff
 	var decks: Dictionary = {}
 	for deck in hull:
 		for cell in hull[deck]:
-			minx = mini(minx, cell.x)
-			maxx = maxi(maxx, cell.x)
 			minz = mini(minz, cell.y)
 			maxz = maxi(maxz, cell.y)
 			decks[deck] = true
 	if decks.is_empty():
 		return {"width": 0, "decks": 0}
-	return {"width": mini(maxx - minx + 1, maxz - minz + 1), "decks": decks.size()}
+	return {"width": maxz - minz + 1, "decks": decks.size()}
 
 
 func filled_roles() -> Dictionary:
