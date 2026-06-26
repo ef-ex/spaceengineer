@@ -52,6 +52,31 @@ func test_overloaded_run_fails() -> void:
 	assert_bool(res.ok).is_false()
 
 
+func test_room_demand_scales_with_area() -> void:
+	# Crew quarters is a ROOM: power_consumed is 0.5 PER CELL. A 4x3 room (12 cells)
+	# demands 6 MW, supplied by a reactor (+10) bridged by one conduit cell.
+	var m := _model()
+	m.place_module(0, CATALOG.by_id("reactor"), Vector2i(0, 0))
+	m.place_room(0, CATALOG.by_id("quarters"), Vector2i(3, 0), Vector2i(4, 3))
+	m.set_conduit("power", 0, Vector2i(2, 0), true)  # adjacent to both reactor and room
+
+	var res := NetworkSolver.solve(m, CATALOG, "power", 1)
+	assert_float(res.demand).is_equal_approx(6.0, 0.01)
+	assert_bool(res.ok).is_true()
+
+
+func test_oversized_room_overloads_its_reactor() -> void:
+	# A 6x4 room (24 cells * 0.5 = 12 MW) exceeds the reactor's 10 MW supply.
+	var m := _model()
+	m.place_module(0, CATALOG.by_id("reactor"), Vector2i(0, 0))
+	m.place_room(0, CATALOG.by_id("quarters"), Vector2i(3, 0), Vector2i(6, 4))
+	m.set_conduit("power", 0, Vector2i(2, 0), true)
+
+	var res := NetworkSolver.solve(m, CATALOG, "power", 1)
+	assert_float(res.demand).is_equal_approx(12.0, 0.01)
+	assert_bool(res.ok).is_false()
+
+
 func test_heat_needs_a_radiator() -> void:
 	# Reactor produces heat (demand on the heat net); without a radiator there is
 	# no dissipation, so heat is unsatisfied. Adding a connected radiator fixes it.

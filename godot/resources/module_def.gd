@@ -7,7 +7,13 @@ extends Resource
 
 @export var id: String = ""
 @export var display_name: String = ""
-## Footprint in grid cells (width X, depth Z). Occupies a w×d rectangle of hull.
+## "equipment" = a discrete device placed by click at a fixed footprint (a network
+## producer/sink: reactor, radiator, engine). "room" = a functional volume sized by
+## drag like the hull (a network consumer: crew quarters, cargo); its supply/demand
+## and cost are read PER CELL and scaled by area. See ship_designer_spec.md.
+@export var kind: String = "equipment"
+## Footprint in grid cells (width X, depth Z). For equipment, the placed size. For
+## rooms, only a fallback — the real extent is the dragged size stored on the entry.
 @export var footprint: Vector2i = Vector2i.ONE
 @export var color: Color = Color(0.6, 0.65, 0.75)
 @export var cost: int = 0

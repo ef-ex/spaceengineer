@@ -10,9 +10,11 @@ const CONFIG_PATH := "user://keybinds.cfg"
 const DEFAULTS := [
 	["des_select", "Select mode", KEY_1, false],
 	["des_hull", "Hull tool", KEY_2, false],
-	["des_modules", "Modules tool", KEY_3, false],
-	["des_route", "Route tool", KEY_4, false],
-	["des_riser", "Riser tool", KEY_5, false],
+	["des_rooms", "Rooms tool", KEY_3, false],
+	["des_door", "Doors tool", KEY_4, false],
+	["des_modules", "Equipment tool", KEY_5, false],
+	["des_route", "Route tool", KEY_6, false],
+	["des_riser", "Riser tool", KEY_7, false],
 	["des_rotate", "Rotate module", KEY_R, false],
 	["des_copy", "Copy selected", KEY_C, false],
 	["des_mirror", "Toggle mirror", KEY_M, false],
@@ -64,7 +66,7 @@ func reset() -> void:
 func _set_event(action: String, keycode: int, ctrl: bool) -> void:
 	InputMap.action_erase_events(action)
 	var ev := InputEventKey.new()
-	ev.keycode = keycode
+	ev.keycode = keycode as Key
 	ev.ctrl_pressed = ctrl
 	InputMap.action_add_event(action, ev)
 

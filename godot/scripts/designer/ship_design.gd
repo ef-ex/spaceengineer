@@ -12,6 +12,9 @@ var modules: Dictionary = {}
 var conduits: Dictionary = {}
 # deck:int -> { Vector2i: true }   (riser links deck and deck+1 at that cell)
 var risers: Dictionary = {}
+# deck:int -> { String: true }   (an opening on the wall edge between two adjacent
+# cells, keyed canonically so two rooms sharing the edge see one door)
+var doors: Dictionary = {}
 
 
 # --- Hull -------------------------------------------------------------------
@@ -49,13 +52,17 @@ static func rotated_footprint(footprint: Vector2i, rot: int) -> Vector2i:
 
 
 func entry_footprint(entry: Dictionary) -> Vector2i:
+	# Rooms carry their dragged extent on the entry; equipment uses the def footprint.
+	if entry.has("size"):
+		return entry.size
 	var def := _catalog.by_id(entry.id) if _catalog else null
 	var fp: Vector2i = def.footprint if def else Vector2i.ONE
 	return rotated_footprint(fp, entry.get("rot", 0))
 
 
-func can_place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> bool:
-	for cell in module_footprint_cells(origin, rotated_footprint(def.footprint, rot)):
+func can_place_at(deck: int, origin: Vector2i, footprint: Vector2i) -> bool:
+	# Every covered cell must be hull and unoccupied. Shared by equipment + rooms.
+	for cell in module_footprint_cells(origin, footprint):
 		if not has_hull(deck, cell):
 			return false
 		if not module_at(deck, cell).is_empty():
@@ -63,8 +70,27 @@ func can_place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> 
 	return true
 
 
+func can_place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> bool:
+	return can_place_at(deck, origin, rotated_footprint(def.footprint, rot))
+
+
+func can_place_room(deck: int, origin: Vector2i, size: Vector2i) -> bool:
+	return size.x > 0 and size.y > 0 and can_place_at(deck, origin, size)
+
+
 func place_module(deck: int, def: ModuleDef, origin: Vector2i, rot := 0) -> void:
 	modules.get_or_add(deck, []).append({"id": def.id, "origin": origin, "rot": rot})
+
+
+func place_room(deck: int, def: ModuleDef, origin: Vector2i, size: Vector2i) -> void:
+	modules.get_or_add(deck, []).append({"id": def.id, "origin": origin, "size": size})
+
+
+func entry_area(entry: Dictionary) -> int:
+	# Rooms scale per-cell by their dragged area; equipment counts as one unit.
+	if entry.has("size"):
+		return maxi(1, entry.size.x * entry.size.y)
+	return 1
 
 
 func module_at(deck: int, cell: Vector2i) -> Dictionary:
@@ -116,6 +142,29 @@ func set_riser(deck: int, cell: Vector2i, present: bool) -> void:
 		risers[deck].erase(cell)
 
 
+# --- Doors ------------------------------------------------------------------
+
+static func _edge_key(a: Vector2i, b: Vector2i) -> String:
+	# Canonical (order-independent) key for the wall edge between adjacent a and b.
+	var lo := a
+	var hi := b
+	if b.x < a.x or (b.x == a.x and b.y < a.y):
+		lo = b
+		hi = a
+	return "%d,%d|%d,%d" % [lo.x, lo.y, hi.x, hi.y]
+
+
+func has_door(deck: int, a: Vector2i, b: Vector2i) -> bool:
+	return doors.has(deck) and doors[deck].has(_edge_key(a, b))
+
+
+func set_door(deck: int, a: Vector2i, b: Vector2i, present: bool) -> void:
+	if present:
+		doors.get_or_add(deck, {})[_edge_key(a, b)] = true
+	elif doors.has(deck):
+		doors[deck].erase(_edge_key(a, b))
+
+
 # --- Aggregate queries ------------------------------------------------------
 
 func total_cost() -> int:
@@ -124,7 +173,7 @@ func total_cost() -> int:
 		for entry in modules[deck]:
 			var def := _catalog.by_id(entry.id) if _catalog else null
 			if def:
-				sum += def.cost
+				sum += def.cost * entry_area(entry)   # rooms cost per cell
 	return sum
 
 
@@ -174,6 +223,7 @@ func to_dict() -> Dictionary:
 		"modules": _deep_copy(modules),
 		"conduits": _deep_copy(conduits),
 		"risers": _deep_copy(risers),
+		"doors": _deep_copy(doors),
 	}
 
 
@@ -182,6 +232,7 @@ func from_dict(data: Dictionary) -> void:
 	modules = _deep_copy(data.get("modules", {}))
 	conduits = _deep_copy(data.get("conduits", {}))
 	risers = _deep_copy(data.get("risers", {}))
+	doors = _deep_copy(data.get("doors", {}))
 
 
 # --- Internals --------------------------------------------------------------
@@ -202,6 +253,9 @@ func _clear_cell_dependents(deck: int, cell: Vector2i) -> void:
 	for network in conduits:
 		set_conduit(network, deck, cell, false)
 	set_riser(deck, cell, false)
+	if doors.has(deck):
+		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+			doors[deck].erase(_edge_key(cell, cell + dir))
 
 
 func _deep_copy(value: Variant) -> Variant:

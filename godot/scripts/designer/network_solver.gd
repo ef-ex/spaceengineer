@@ -59,7 +59,7 @@ static func solve(model: ShipDesign, catalog: ModuleCatalog, network: String, de
 			var def := catalog.by_id(entry.id)
 			if def == null:
 				continue
-			var fp := ShipDesign.rotated_footprint(def.footprint, entry.get("rot", 0))
+			var fp := model.entry_footprint(entry)   # room size or equipment footprint
 			var touched := _touched_nodes(model, network, deck, entry.origin, fp)
 			var key := _mkey(deck, entry.origin)
 			if touched.is_empty():
@@ -84,14 +84,15 @@ static func solve(model: ShipDesign, catalog: ModuleCatalog, network: String, de
 			var def := catalog.by_id(entry.id)
 			if def == null:
 				continue
-			total_supply += def.get(supply_field)
-			total_demand += def.get(demand_field)
+			var a := model.entry_area(entry)   # rooms draw/dissipate per cell
+			total_supply += def.get(supply_field) * a
+			total_demand += def.get(demand_field) * a
 			var rep: Variant = mod_touch[_mkey(deck, entry.origin)]
 			if rep == null:
 				continue
 			var root: Vector3i = _find(parent, rep)
-			comp_supply[root] = comp_supply.get(root, 0.0) + def.get(supply_field)
-			comp_demand[root] = comp_demand.get(root, 0.0) + def.get(demand_field)
+			comp_supply[root] = comp_supply.get(root, 0.0) + def.get(supply_field) * a
+			comp_demand[root] = comp_demand.get(root, 0.0) + def.get(demand_field) * a
 
 	# Pass 4 — diagnostics, ok, module status.
 	var diagnostics: Array = []
@@ -102,7 +103,7 @@ static func solve(model: ShipDesign, catalog: ModuleCatalog, network: String, de
 			var def := catalog.by_id(entry.id)
 			if def == null:
 				continue
-			var demand: float = def.get(demand_field)
+			var demand: float = def.get(demand_field) * model.entry_area(entry)
 			var status := OK
 			if demand > 0.0:
 				var rep: Variant = mod_touch[_mkey(deck, entry.origin)]

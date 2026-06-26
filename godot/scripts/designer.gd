@@ -1,14 +1,15 @@
 extends Node3D
 ## Ship Designer. Renders entirely from a ShipDesign model (the source of truth);
 ## every edit mutates the model, snapshots undo, re-solves the networks, and
-## re-renders. Tools: Hull, Module, Route. Overlays dim the world and draw one
-## network coloured by the solver result. All feel/visual values live in `config`.
+## re-renders. Tools: Hull, Rooms (drag a sized volume), Doors (open a wall edge),
+## Equipment (click-place a device), Route, Riser. Overlays dim the world and draw
+## one network coloured by the solver result. All feel/visual values live in `config`.
 
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
-enum Tool { SELECT, HULL, MODULE, ROUTE, RISER }
+enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR }
 
 @export var config: DesignerConfig
 @export var catalog: ModuleCatalog
@@ -18,7 +19,8 @@ var _model: ShipDesign
 var _tool: int = Tool.SELECT
 var _overlay: String = ""          # "", "power", "heat" — what the world is dimmed/coloured to show
 var _route_net: String = "power"   # which network the Route tool places (picked in the Route palette)
-var _active_module: String = ""    # selected module id for the Module tool
+var _active_module: String = ""    # selected equipment id for the Equipment tool
+var _active_room: String = ""      # selected room type for the Rooms tool
 var _place_rot: int = 0            # rotation (quarter-turns) for the next placement
 var _selected: Dictionary = {}     # the module entry picked in Select mode
 var _sel_deck: int = 0
@@ -51,6 +53,7 @@ var _drag_add := true
 var _drag_start := Vector2i.ZERO
 var _hover: Variant = null
 var _last_cell: Variant = null   # last in-grid cell, so drags off the edge still resolve
+var _hover_edge: Variant = null  # {cell, dir} wall edge under the cursor, for the Doors tool
 
 # UI refs
 var _tool_buttons := {}
@@ -59,6 +62,8 @@ var _module_buttons := {}
 var _module_picker: Control
 var _route_buttons := {}
 var _route_picker: Control
+var _room_buttons := {}
+var _room_picker: Control
 var _stat_box: VBoxContainer
 var _diag_bar: PanelContainer
 var _diag_label: Label
@@ -79,8 +84,12 @@ func _ready() -> void:
 		contract = Career.current_contract()
 	_model = ShipDesign.new()
 	_model.bind_catalog(catalog)
-	if not catalog.modules.is_empty():
-		_active_module = catalog.modules[0].id
+	for def in catalog.modules:
+		if def.kind == "room":
+			if _active_room == "":
+				_active_room = def.id
+		elif _active_module == "":
+			_active_module = def.id
 
 	var extent := config.grid_size * config.cell_size
 	_target = Vector3(extent * 0.5, 0.0, extent * 0.5)
@@ -266,6 +275,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_camera()
 		else:
 			_hover = _resolve_cell(event.position)
+			if _tool == Tool.DOOR:
+				_hover_edge = _edge_at(event.position)
 			_update_preview()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		_key(event)
@@ -282,6 +293,10 @@ func _key(event: InputEventKey) -> void:
 		_set_tool(Tool.SELECT)
 	elif event.is_action_pressed("des_hull"):
 		_set_tool(Tool.HULL)
+	elif event.is_action_pressed("des_rooms"):
+		_set_tool(Tool.ROOM)
+	elif event.is_action_pressed("des_door"):
+		_set_tool(Tool.DOOR)
 	elif event.is_action_pressed("des_modules"):
 		_set_tool(Tool.MODULE)
 	elif event.is_action_pressed("des_route"):
@@ -318,6 +333,8 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 				else:
 					_remove_module(cell)
 				_post_change()
+			Tool.DOOR:
+				_toggle_door(event.position, add)
 			_:
 				_dragging = true
 				_drag_add = add
@@ -332,7 +349,12 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 		elif _dragging and _tool != Tool.MODULE:
 			_dragging = false
 			if cell != null:
-				_apply_rect(_drag_start, cell, _drag_add)
+				if _tool == Tool.ROOM:
+					_apply_room(_drag_start, cell, _drag_add)
+				elif _tool == Tool.ROUTE:
+					_apply_route_path(_drag_start, cell, _drag_add)   # a line, not a fill
+				else:
+					_apply_rect(_drag_start, cell, _drag_add)
 			_update_preview()
 
 
@@ -360,6 +382,55 @@ func _cell_at(screen_pos: Vector2) -> Variant:
 	if cx < 0 or cz < 0 or cx >= config.grid_size or cz >= config.grid_size:
 		return null
 	return Vector2i(cx, cz)
+
+
+func _edge_at(screen_pos: Vector2) -> Variant:
+	# The cell under the cursor plus the nearest of its four edges, for door placement.
+	var plane_y := _floor_y(_active_deck)
+	var from := _cam.project_ray_origin(screen_pos)
+	var dir := _cam.project_ray_normal(screen_pos)
+	if absf(dir.y) < 0.0001:
+		return null
+	var t := (plane_y - from.y) / dir.y
+	if t <= 0.0:
+		return null
+	var hit := from + dir * t
+	var fx := hit.x / config.cell_size
+	var fz := hit.z / config.cell_size
+	var cx := int(floor(fx))
+	var cz := int(floor(fz))
+	if cx < 0 or cz < 0 or cx >= config.grid_size or cz >= config.grid_size:
+		return null
+	var rx := fx - cx   # 0..1 within the cell
+	var rz := fz - cz
+	var edges := {Vector2i.LEFT: rx, Vector2i.RIGHT: 1.0 - rx, Vector2i(0, -1): rz, Vector2i(0, 1): 1.0 - rz}
+	var best := Vector2i.LEFT
+	for d in edges:
+		if edges[d] < edges[best]:
+			best = d
+	return {"cell": Vector2i(cx, cz), "dir": best}
+
+
+func _is_room(deck: int, cell: Vector2i) -> bool:
+	var entry := _model.module_at(deck, cell)
+	if entry.is_empty():
+		return false
+	var def := catalog.by_id(entry.id)
+	return def != null and def.kind == "room"
+
+
+func _toggle_door(screen_pos: Vector2, add: bool) -> void:
+	# A door sits on a room's wall edge: one side of the edge must be a room cell.
+	var e = _edge_at(screen_pos)
+	if e == null:
+		return
+	var cell: Vector2i = e.cell
+	var neighbor: Vector2i = cell + e.dir
+	if not _is_room(_active_deck, cell) and not _is_room(_active_deck, neighbor):
+		return
+	_push_undo()
+	_model.set_door(_active_deck, cell, neighbor, add)
+	_post_change()
 
 
 # --- Edits ------------------------------------------------------------------
@@ -392,6 +463,65 @@ func _apply_cell(cell: Vector2i, add: bool) -> void:
 			if add and not _model.has_hull(_active_deck, cell):
 				return
 			_model.set_riser(_active_deck, cell, add)
+
+
+func _apply_room(a: Vector2i, b: Vector2i, add: bool) -> void:
+	# Left-drag stamps one room of the active type over the dragged rect (if it's
+	# all hull and unoccupied); right-drag removes whatever interior is in the rect.
+	var origin := Vector2i(mini(a.x, b.x), mini(a.y, b.y))
+	var size := Vector2i(absi(a.x - b.x) + 1, absi(a.y - b.y) + 1)
+	_push_undo()
+	if add:
+		var def := catalog.by_id(_active_room)
+		if def and _model.can_place_room(_active_deck, origin, size):
+			_model.place_room(_active_deck, def, origin, size)
+	else:
+		for cell in _model.module_footprint_cells(origin, size):
+			_model.remove_module_at(_active_deck, cell)
+	_post_change()
+
+
+func _route_path(a: Vector2i, b: Vector2i) -> Array:
+	# Shortest hull path (4-connected BFS) from a to b, so a cable/pipe is a line that
+	# follows the hull rather than a filled rectangle. Empty if b isn't reachable.
+	if not _model.has_hull(_active_deck, a) or not _model.has_hull(_active_deck, b):
+		return []
+	if a == b:
+		return [a]
+	var came := {a: a}
+	var queue: Array[Vector2i] = [a]
+	var head := 0
+	while head < queue.size():
+		var cur: Vector2i = queue[head]
+		head += 1
+		if cur == b:
+			break
+		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+			var nxt: Vector2i = cur + dir
+			if came.has(nxt) or not _model.has_hull(_active_deck, nxt):
+				continue
+			came[nxt] = cur
+			queue.append(nxt)
+	if not came.has(b):
+		return []
+	var path: Array[Vector2i] = []
+	var c := b
+	while c != a:
+		path.append(c)
+		c = came[c]
+	path.append(a)
+	path.reverse()
+	return path
+
+
+func _apply_route_path(a: Vector2i, b: Vector2i, add: bool) -> void:
+	var path := _route_path(a, b)
+	if path.is_empty():
+		return
+	_push_undo()
+	for cell in path:
+		_model.set_conduit(_route_net, _active_deck, cell, add)
+	_post_change()
 
 
 func _place_module(cell: Vector2i) -> void:
@@ -454,15 +584,21 @@ func _move_selected(target_cell: Vector2i) -> void:
 	if def == null:
 		return
 	var rot: int = _selected.get("rot", 0)
+	var is_room: bool = _selected.has("size")
+	var size: Vector2i = _selected.get("size", Vector2i.ONE)
 	var old_origin: Vector2i = _selected.origin
+	var can_to := func(o: Vector2i) -> bool:
+		return _model.can_place_room(_sel_deck, o, size) if is_room else _model.can_place_module(_sel_deck, def, o, rot)
+	var put := func(o: Vector2i) -> void:
+		if is_room:
+			_model.place_room(_sel_deck, def, o, size)
+		else:
+			_model.place_module(_sel_deck, def, o, rot)
 	_push_undo()
 	_model.remove_module_at(_sel_deck, old_origin)
-	if _model.can_place_module(_sel_deck, def, new_origin, rot):
-		_model.place_module(_sel_deck, def, new_origin, rot)
-		_selected = _model.module_at(_sel_deck, new_origin)
-	else:
-		_model.place_module(_sel_deck, def, old_origin, rot)   # invalid -> put it back
-		_selected = _model.module_at(_sel_deck, old_origin)
+	var dest := new_origin if can_to.call(new_origin) else old_origin   # invalid -> put it back
+	put.call(dest)
+	_selected = _model.module_at(_sel_deck, dest)
 	_post_change()
 
 
@@ -479,9 +615,13 @@ func _copy_selected() -> void:
 	# Eyedropper: adopt the selected module's type + rotation and switch to placing.
 	if _selected.is_empty():
 		return
-	_active_module = _selected.id
-	_place_rot = _selected.get("rot", 0)
-	_set_tool(Tool.MODULE)
+	if _selected.has("size"):
+		_active_room = _selected.id
+		_set_tool(Tool.ROOM)
+	else:
+		_active_module = _selected.id
+		_place_rot = _selected.get("rot", 0)
+		_set_tool(Tool.MODULE)
 
 
 func _can_move_to(cells: Array) -> bool:
@@ -502,11 +642,13 @@ func _remove_module(cell: Vector2i) -> void:
 
 
 func _mirror_cell(cell: Vector2i) -> Vector2i:
-	return Vector2i(config.grid_size - 1 - cell.x, cell.y)
+	# Mirror across the fore-aft centreline (forward is +X, beam runs along Z), so the
+	# port/starboard pair flips the Z coord and keeps X.
+	return Vector2i(cell.x, config.grid_size - 1 - cell.y)
 
 
 func _mirror_origin(origin: Vector2i, footprint: Vector2i) -> Vector2i:
-	return Vector2i(config.grid_size - footprint.x - origin.x, origin.y)
+	return Vector2i(origin.x, config.grid_size - footprint.y - origin.y)
 
 
 # --- Undo -------------------------------------------------------------------
@@ -603,6 +745,9 @@ func _render_deck(d: int, ghost: bool) -> void:
 		var def := catalog.by_id(entry.id)
 		if def == null:
 			continue
+		if def.kind == "room":
+			_render_room(d, entry, def, dim, y, slab, mod_status)
+			continue
 		var fp := ShipDesign.rotated_footprint(def.footprint, entry.get("rot", 0))
 		var col := def.color
 		if dim:
@@ -627,6 +772,44 @@ func _render_deck(d: int, ghost: bool) -> void:
 			_add_box(_world, center, Vector3(config.conduit_thickness, config.conduit_thickness, config.conduit_thickness), _status_color(status), true)
 
 
+func _render_room(d: int, entry: Dictionary, def: ModuleDef, dim: bool, y: float, slab: float, mod_status: Dictionary) -> void:
+	# A room reads as an enclosed space: a tinted floor over its cells plus perimeter
+	# walls. Doors / auto-furnishing are the next pass (see ship_designer_spec.md).
+	var origin: Vector2i = entry.origin
+	var size: Vector2i = entry.get("size", def.footprint)
+	var floor_col := def.color
+	if dim:
+		floor_col = config.overlay_dim_color
+		if mod_status.get(entry.origin, "") == NetworkSolver.ERROR:
+			floor_col = config.status_error_color
+	for cell in _model.module_footprint_cells(origin, size):
+		var fc := Vector3((cell.x + 0.5) * config.cell_size, y + slab + 0.015, (cell.y + 0.5) * config.cell_size)
+		_add_box(_world, fc, Vector3(config.cell_size, slab * 0.6, config.cell_size) * 0.92, floor_col)
+
+	var wh := config.deck_height - slab
+	var wy := y + slab + wh * 0.5
+	var t := config.wall_thickness
+	var x0 := origin.x * config.cell_size
+	var x1 := (origin.x + size.x) * config.cell_size
+	var z0 := origin.y * config.cell_size
+	var z1 := (origin.y + size.y) * config.cell_size
+	# Per-cell perimeter walls, so a door (an opening on one edge) cuts a real gap.
+	var room_rect := Rect2i(origin, size)
+	for cell in _model.module_footprint_cells(origin, size):
+		for wdir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+			var n: Vector2i = cell + wdir
+			if room_rect.has_point(n) or _model.has_door(d, cell, n):
+				continue   # interior edge, or a doorway
+			var wx: float = (cell.x + 0.5) * config.cell_size + wdir.x * config.cell_size * 0.5
+			var wz: float = (cell.y + 0.5) * config.cell_size + wdir.y * config.cell_size * 0.5
+			var wsize := Vector3(t, wh, config.cell_size) if wdir.x != 0 else Vector3(config.cell_size, wh, t)
+			_add_box(_world, Vector3(wx, wy, wz), wsize, config.wall_color)
+	if d == _sel_deck and not _selected.is_empty() and entry.origin == _selected.origin and entry.id == _selected.id:
+		_add_box(_world, Vector3((x0 + x1) * 0.5, wy, (z0 + z1) * 0.5),
+			Vector3(x1 - x0, wh, z1 - z0), Color(0.40, 0.72, 1.0, 0.18), true, true)
+	_add_label(def.display_name, Vector3((x0 + x1) * 0.5, y + slab + wh * 0.6, (z0 + z1) * 0.5))
+
+
 func _render_risers() -> void:
 	for d in _model.risers:
 		for cell in _model.risers[d].keys():
@@ -648,8 +831,7 @@ func _update_preview() -> void:
 		if _moving and not _selected.is_empty() and _hover is Vector2i:
 			var sdef := catalog.by_id(_selected.id)
 			if sdef:
-				var srot: int = _selected.get("rot", 0)
-				var sfp := ShipDesign.rotated_footprint(sdef.footprint, srot)
+				var sfp: Vector2i = _selected.size if _selected.has("size") else ShipDesign.rotated_footprint(sdef.footprint, _selected.get("rot", 0))
 				var sorigin: Vector2i = _drag_origin + ((_hover as Vector2i) - _drag_start)
 				var scells := _model.module_footprint_cells(sorigin, sfp)
 				var sok := _can_move_to(scells)
@@ -658,12 +840,28 @@ func _update_preview() -> void:
 					_add_preview_cell(c, y, scol)
 		return
 
+	if _tool == Tool.DOOR:
+		if _hover_edge != null:
+			var ec: Vector2i = _hover_edge.cell
+			var ed: Vector2i = _hover_edge.dir
+			var ex := (ec.x + 0.5) * config.cell_size + ed.x * config.cell_size * 0.5
+			var ez := (ec.y + 0.5) * config.cell_size + ed.y * config.cell_size * 0.5
+			var ok := _is_room(_active_deck, ec) or _is_room(_active_deck, ec + ed)
+			var ecol := config.ghost_color if ok else config.ghost_invalid_color
+			var esize := Vector3(0.16, config.deck_height * 0.55, config.cell_size * 0.85) if ed.x != 0 else Vector3(config.cell_size * 0.85, config.deck_height * 0.55, 0.16)
+			_add_box(_preview, Vector3(ex, _floor_y(_active_deck) + config.deck_height * 0.3, ez), esize, ecol, true, true)
+		return
+
 	if _dragging and _tool != Tool.MODULE and _hover is Vector2i:
+		var col := config.ghost_color if _drag_add else config.ghost_invalid_color
+		if _tool == Tool.ROUTE:
+			for cell in _route_path(_drag_start, _hover):
+				_add_preview_cell(cell, y, col)
+			return
 		var x0 := mini(_drag_start.x, _hover.x)
 		var x1 := maxi(_drag_start.x, _hover.x)
 		var z0 := mini(_drag_start.y, _hover.y)
 		var z1 := maxi(_drag_start.y, _hover.y)
-		var col := config.ghost_color if _drag_add else config.ghost_invalid_color
 		for x in range(x0, x1 + 1):
 			for z in range(z0, z1 + 1):
 				_add_preview_cell(Vector2i(x, z), y, col)
@@ -824,17 +1022,32 @@ func _build_ui() -> void:
 	_module_picker.add_theme_constant_override("separation", 6)
 	build.add_child(_module_picker)
 	for def in catalog.modules:
+		if def.kind == "room":
+			continue  # rooms live in their own palette (drag-to-size, not click-place)
 		if not Career.is_module_unlocked(def):
-			continue  # locked modules are bought in the shop between contracts
+			continue  # locked equipment is bought in the shop between contracts
 		var b := _button("%s  ¤%s" % [def.display_name, _money(def.cost)])
 		b.pressed.connect(_set_module.bind(def.id))
 		_module_buttons[def.id] = b
 		_module_picker.add_child(b)
 	_module_picker.add_child(_sep())
-	var rotate := _button("⟳ Rotate")
-	rotate.tooltip_text = "Rotate the module before placing (R)"
-	rotate.pressed.connect(_rotate_placement)
-	_module_picker.add_child(rotate)
+	var rotate_btn := _button("⟳ Rotate")
+	rotate_btn.tooltip_text = "Rotate the equipment before placing (R)"
+	rotate_btn.pressed.connect(_rotate_placement)
+	_module_picker.add_child(rotate_btn)
+
+	# Room palette (visible for the Rooms tool): pick a type, then drag its extent on
+	# the deck like the hull. Rooms are sized volumes, priced + powered per cell.
+	_room_picker = HBoxContainer.new()
+	_room_picker.add_theme_constant_override("separation", 6)
+	build.add_child(_room_picker)
+	for def in catalog.modules:
+		if def.kind != "room" or not Career.is_module_unlocked(def):
+			continue
+		var rb := _button("%s  ¤%s/cell" % [def.display_name, _money(def.cost)])
+		rb.pressed.connect(_set_room.bind(def.id))
+		_room_buttons[def.id] = rb
+		_room_picker.add_child(rb)
 
 	# Route palette (visible for the Route tool): pick what you place — independent
 	# of the overlay, which is only what you see.
@@ -849,7 +1062,9 @@ func _build_ui() -> void:
 	build.add_child(tools)
 	_tool_buttons[Tool.SELECT] = _add_tool(tools, "Select", Tool.SELECT)
 	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
-	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Modules", Tool.MODULE)
+	_tool_buttons[Tool.ROOM] = _add_tool(tools, "Rooms", Tool.ROOM)
+	_tool_buttons[Tool.DOOR] = _add_tool(tools, "Doors", Tool.DOOR)
+	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Equipment", Tool.MODULE)
 	_tool_buttons[Tool.ROUTE] = _add_tool(tools, "Route", Tool.ROUTE)
 	_tool_buttons[Tool.RISER] = _add_tool(tools, "Riser", Tool.RISER)
 
@@ -1008,6 +1223,15 @@ func _set_overlay(net: String) -> void:
 	_refresh_ui()
 
 
+func _set_room(id: String) -> void:
+	_active_room = id
+	if _tool != Tool.ROOM:
+		_set_tool(Tool.ROOM)
+	else:
+		_refresh_ui()
+		_update_preview()
+
+
 func _set_route_net(net: String) -> void:
 	_route_net = net
 	if _tool != Tool.ROUTE:
@@ -1080,6 +1304,9 @@ func _refresh_ui() -> void:
 	_route_picker.visible = _tool == Tool.ROUTE
 	for n in _route_buttons:
 		_route_buttons[n].modulate = Color.WHITE if n == _route_net else Color(1, 1, 1, 0.5)
+	_room_picker.visible = _tool == Tool.ROOM
+	for id in _room_buttons:
+		_room_buttons[id].modulate = Color.WHITE if id == _active_room else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
 	_rebuild_diagnostics()
 
@@ -1094,7 +1321,7 @@ func _rebuild_stats() -> void:
 			config.status_error_color if over else config.status_ok_color))
 	else:
 		_stat_box.add_child(_stat_line("Cost", "¤%s" % _money(cost)))
-	_stat_box.add_child(_stat_line("Modules", str(_count_modules())))
+	_stat_box.add_child(_stat_line("Parts", str(_count_modules())))
 	if _results.has("power"):
 		var p: Dictionary = _results["power"]
 		_stat_box.add_child(_stat_line("Power", "%s / %s MW" % [_num(p.demand), _num(p.supply)],

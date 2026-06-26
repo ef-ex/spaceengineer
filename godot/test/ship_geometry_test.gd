@@ -33,3 +33,14 @@ func test_rotated_module_occupies_swapped_cells() -> void:
 	m.place_module(0, CAT.by_id("engine"), Vector2i(0, 0), 1)
 	assert_bool(m.module_at(0, Vector2i(1, 0)).is_empty()).is_false()  # covered
 	assert_bool(m.module_at(0, Vector2i(0, 1)).is_empty()).is_true()   # not covered
+
+
+func test_door_is_stored_once_per_shared_edge() -> void:
+	# A door on the edge between two adjacent cells is order-independent: setting it
+	# from (a,b) makes it readable from (b,a), so two rooms sharing the wall agree.
+	var m := ShipDesign.new()
+	m.bind_catalog(CAT)
+	m.set_door(0, Vector2i(2, 1), Vector2i(3, 1), true)
+	assert_bool(m.has_door(0, Vector2i(3, 1), Vector2i(2, 1))).is_true()
+	m.set_door(0, Vector2i(3, 1), Vector2i(2, 1), false)
+	assert_bool(m.has_door(0, Vector2i(2, 1), Vector2i(3, 1))).is_false()
