@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="spaceengineer"
+config/name="Rigger's Hullworks"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
@@ -29,13 +29,13 @@ window/size/viewport_height=1440
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
-[gui]
-
-theme/custom="res://resources/ui_theme.tres"
-
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg", "res://addons/godot_mcp/plugin.cfg")
+
+[gui]
+
+theme/custom="res://resources/ui_theme.tres"
 
 [physics]
 

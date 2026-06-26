@@ -1,7 +1,7 @@
 # Ship Designer — UX Research & Recommendations
 
 **Status:** Research synthesis (2026-06-23).
-**Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
+**Working title:** **Rigger's Hullworks** (chosen 2026-06-26). See `game_vision.md`.
 **Related:** `ship_designer_spec.md` (the spec this informs), `prototype_scope.md` (the
 scope fence), `game_vision.md`.
 **Scope note:** Every recommendation below is tagged **[PROTOTYPE]** (in the documented

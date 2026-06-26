@@ -1,6 +1,6 @@
-# Space Engineer — Prototype Scope
+# Rigger's Hullworks — Prototype Scope
 
-> **Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
+> **Working title:** **Rigger's Hullworks** (chosen 2026-06-26). See `game_vision.md`.
 
 **Status:** Proposed scope (2026-06-22). The authoritative "what's in the first shippable build" doc.
 **Relationship:** This is the prototype slice of the full vision in `game_vision.md`. Design detail:
@@ -36,8 +36,11 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
   test the real hook — *not* splines, freeform sculpting, or runtime-generated geometry (those are
   vision). One bounded authored-art exception, justified by the Houdini pipeline. See
   `ship_designer_spec.md`.
-- **Interior module placement + manual conduit routing** (power + heat to start; pipes/cables run in
-  walls/floors). Connectivity puzzle, validated by precalc. See `ship_designer_spec.md`.
+- **Interior contents + manual conduit routing** — **rooms** (resizable, typed volumes; same
+  resize mechanic as the hull) and **equipment** (discrete technical pieces: reactor, radiator…),
+  plus power + heat routing (pipes/cables run in walls/floors). Connectivity puzzle, validated by
+  precalc. Cables/heat-pipes are picked from a **Route palette**, not the overlay. See
+  `ship_designer_spec.md`.
 - **Gate-fit constraint** — exterior silhouette must pass the contract's gate.
 - **Contract** — purpose (→ required modules/stats) + gate class + budget.
 - **Validation + scripted gate fly-through** — pass/fail payoff. Scripted, NOT player flight.

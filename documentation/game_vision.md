@@ -1,7 +1,8 @@
-# Game Vision — (working title "Space Engineer")
+# Game Vision — (working title "Rigger's Hullworks")
 
 **Status:** Active vision (2026-06-22).
-**Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
+**Working title:** **Rigger's Hullworks** (chosen 2026-06-26) — a diegetic title: the game is named
+after the player's in-game ship workshop. Steam/USPTO/EU-trademark-clear as of that date; not yet registered.
 **Read-first doc.** Detail lives in `ship_designer_spec.md` (designer mechanics + visuals),
 `mission_generator.md`, `ships_and_stations_design.md` (build model + interior),
 `prototype_scope.md` (scope + vision parking lot), `open_questions.md`.
@@ -52,8 +53,8 @@ to buy**. (New economy loop — pricing / who-buys / unsold-upkeep TBD; see `ope
 ## End goal — the generation ship (bridge to Galaxia)
 
 The career capstone is a once-in-a-generation commission: **design humanity's generation ship** —
-the very vessel **Galaxia begins with**, which kicks off Galaxia's **panspermia** mechanic. Space
-Engineer ends exactly where Galaxia starts. The generation ship is a **special one-off capstone
+the very vessel **Galaxia begins with**, which kicks off Galaxia's **panspermia** mechanic. Rigger's
+Hullworks ends exactly where Galaxia starts. The generation ship is a **special one-off capstone
 commission**, not a general buildable class.
 
 ## Classes
@@ -71,20 +72,20 @@ The fantasy is building cool, iconic ships, and iconic ships (X-wing, Star Destr
   wants a patrol ship with ≥4 turret hardpoints"). Players build their armed ships; the contract
   checks the spec. **Nothing fires** — zero combat code required.
 - **OUT (stays cut):** combat *as gameplay* — flying, firing, enemies, damage, AI, balancing, a battle
-  arena. That's a whole second game and is not part of Space Engineer.
+  arena. That's a whole second game and is not part of Rigger's Hullworks.
 
 The line: weapons are part of the *build*, not a *fight*. Any future "see it fire" behavior pairs with
-the (deferred) ship tester and is a separate, opt-in decision. Weapon modules are Space-Engineer-only —
+the (deferred) ship tester and is a separate, opt-in decision. Weapon modules are Rigger's-Hullworks-only —
 they do not transfer to Galaxia (which is non-combat).
 
-## What this game is NOT (the Galaxia/Space-Engineer split)
+## What this game is NOT (the Galaxia/Rigger's-Hullworks split)
 
 Out of scope here, belongs to Galaxia: stations, the resource/production chain, blueprint *sharing*,
-galaxy map / fleet logistics. **Space Engineer = the ship designer + the job-sim wrapper.**
+galaxy map / fleet logistics. **Rigger's Hullworks = the ship designer + the job-sim wrapper.**
 (Combat-as-gameplay is out of *both* games — see Weapons above.)
 
 ## What transfers to Galaxia
 
 The ship designer, the two-layer model, the functional networks (precalc), and the class/pattern
 model — proven cheaply here, then adopted in Galaxia. The wrapper (contracts, economy, ratings,
-awards) is Space-Engineer-only and does not transfer.
+awards) is Rigger's-Hullworks-only and does not transfer.

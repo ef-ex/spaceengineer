@@ -8,7 +8,7 @@ const CONFIG_PATH := "user://keybinds.cfg"
 
 # [action, label, default keycode, default ctrl]
 const DEFAULTS := [
-	["des_select", "Select mode", KEY_S, false],
+	["des_select", "Select mode", KEY_1, false],
 	["des_hull", "Hull tool", KEY_2, false],
 	["des_modules", "Modules tool", KEY_3, false],
 	["des_route", "Route tool", KEY_4, false],

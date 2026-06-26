@@ -1,9 +1,9 @@
 # Ships & Stations — Design Synthesis
 
 **Status:** Active design (2026-06-22). Captures decisions from design discussion.
-**Origin note:** Originally drafted in Galaxia's docs; copied here because ship design is now Space
-Engineer's domain. ⚠️ A copy also exists in `galaxia/documentation/` — pick ONE canonical home to
-avoid divergence. Recommendation: keep this (Space Engineer) copy canonical; leave a pointer in Galaxia.
+**Origin note:** Originally drafted in Galaxia's docs; copied here because ship design is now Rigger's
+Hullworks' domain. ⚠️ A copy also exists in `galaxia/documentation/` — pick ONE canonical home to
+avoid divergence. Recommendation: keep this (Rigger's Hullworks) copy canonical; leave a pointer in Galaxia.
 **Builds on (Galaxia docs):** `module_patterns.md`, `module_set_spec.md`, `class_hierarchy.md`.
 
 > **Scope note:** This documents the *full* ship design intent. Stations are deliberately left as an

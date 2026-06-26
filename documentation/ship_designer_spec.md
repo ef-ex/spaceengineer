@@ -1,7 +1,7 @@
 # Ship Designer — Spec
 
 **Status:** Active design (2026-06-22).
-**Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
+**Working title:** **Rigger's Hullworks** (chosen 2026-06-26). See `game_vision.md`.
 **Related:** `game_vision.md`, `ships_and_stations_design.md`, `prototype_scope.md`.
 **Overrides:** Galaxia's `module_set_spec.md` class/grid model (see "Class" below).
 
@@ -96,6 +96,39 @@ Factorio-style: **save and reuse designs / sub-assemblies.** Two jobs:
 > ⚠️ **Open risk:** blueprints can trivialize the core design loop (save one good ship, re-stamp
 > forever, stop designing). Unsolved. See `open_questions.md`.
 
+## Interior contents — rooms vs equipment (Layer 2 objects)
+
+The interior is built from **two kinds of object**, not one. The single "module"
+model is a **Galaxia holdover** — there, ships were assemblies of adjacency-scored
+modules, so a "crew-quarters module" made sense as a unit. On this freeform grid a
+crew quarters or cargo hold is a **space**, not a unit, so the model splits:
+
+- **Rooms** — functional **volumes** (crew quarters, cargo hold, medbay, bridge…).
+  Authored with the **same resize-a-box mechanic as the hull**: the player drags out
+  the room's extent on a deck. The game **auto-furnishes** the interior (walls,
+  fixtures, equipment props — cheap primitives) and the **player places the doors**.
+  A room is the canonical **network consumer**: its demand (power/heat/O2/water)
+  scales with its **type and size**.
+- **Equipment** — discrete **technical pieces** the player drops down (reactor,
+  radiator, engine, thruster…). Keeps the current place-a-footprint mechanic. These
+  are the network **producers / sinks** (reactor → power, radiator → heat).
+
+**Data:** `ModuleDef` gains `kind: room | equipment`. Equipment keeps a fixed
+footprint; rooms carry a **resizable rect** (origin + size) + type. The precalc
+solver is unchanged *in spirit* — it still resolves producers → consumers within
+capacity; rooms are sized consumers, equipment are producers/sinks, so the existing
+solver and its tests carry over. This is an **evolution of the module model, not a
+teardown.**
+
+**Prototype scope for this:** a room reads as an enclosed space with a player-placed
+door; auto-props are cheap primitives; room demand is a simple function of type × size.
+Richer interior architecture (corridors, stairs/elevators, room-to-room flow rules)
+stays vision — see `ships_and_stations_design.md`.
+
+> **Routing UX:** cables and heat-pipes are picked from a **Route palette** (like the
+> module palette) — NOT inferred from the active overlay. **Overlay = what you *see*;
+> palette = what you *place*.** Two independent controls.
+
 ## Functional networks (the interior puzzle, Layer 2) — manual routing, precalc validation
 
 The interior is made *functional* by routing networks through it:
@@ -143,7 +176,8 @@ one bounded **authored-mesh** exception is the hull pieces (see "Shape definitio
 ## Prototype subset
 
 Drake only; **authored hull pieces** (cells + morph handles), with rectangle/cell as the quick
-fallback; place a handful of interior modules; **manually route power + heat** (add O2/water only if
+fallback; place **rooms** (resizable, typed) + **equipment** (discrete technical pieces);
+**manually route power + heat** (add O2/water only if
 cheap); precalc pass/fail + diagnostics; gate-fit check; flat-colour customization. Splines,
 **runtime-generative** hull pieces, blueprints, multiple classes, textures, and the full network set
 are vision, not prototype.

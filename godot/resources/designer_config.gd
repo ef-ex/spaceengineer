@@ -28,6 +28,9 @@ extends Resource
 @export var orbit_speed: float = 0.01
 ## Distance change per mouse-wheel notch.
 @export var zoom_step: float = 2.0
+## WASD/QE free-move speed, in "screen-distances" per second — scaled by zoom so
+## panning feels the same close-in and far-out. Feel knob.
+@export var pan_speed: float = 1.2
 
 @export_group("World")
 @export var background_color: Color = Color(0.05, 0.06, 0.09)
@@ -45,6 +48,10 @@ extends Resource
 ## views), so the ship reads as a volume rather than bare floors.
 @export var wall_color: Color = Color(0.42, 0.52, 0.70)
 @export var wall_thickness: float = 0.08
+## Opacity of the perimeter shell drawn around the active deck while editing, so
+## the floor reads as an enclosed room without hiding the top-down build view.
+## 0 = off (bare floor plan); ~0.35 = a clear see-through hull. Feel knob.
+@export_range(0.0, 1.0) var edit_shell_alpha: float = 0.35
 ## Translucent valid-placement preview under the cursor.
 @export var ghost_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 ## Translucent preview when the cursor placement is invalid.

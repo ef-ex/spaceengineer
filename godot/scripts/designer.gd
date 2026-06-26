@@ -16,7 +16,8 @@ enum Tool { SELECT, HULL, MODULE, ROUTE, RISER }
 
 var _model: ShipDesign
 var _tool: int = Tool.SELECT
-var _overlay: String = ""          # "", "power", "heat"
+var _overlay: String = ""          # "", "power", "heat" — what the world is dimmed/coloured to show
+var _route_net: String = "power"   # which network the Route tool places (picked in the Route palette)
 var _active_module: String = ""    # selected module id for the Module tool
 var _place_rot: int = 0            # rotation (quarter-turns) for the next placement
 var _selected: Dictionary = {}     # the module entry picked in Select mode
@@ -56,6 +57,8 @@ var _tool_buttons := {}
 var _overlay_buttons := {}
 var _module_buttons := {}
 var _module_picker: Control
+var _route_buttons := {}
+var _route_picker: Control
 var _stat_box: VBoxContainer
 var _diag_bar: PanelContainer
 var _diag_label: Label
@@ -214,6 +217,26 @@ func _update_camera() -> void:
 	_cam.look_at(_target, Vector3.UP)
 
 
+func _process(delta: float) -> void:
+	# Free move: WASD pans the view across the ground plane (screen-relative), Q/E
+	# drop/raise it. Orbit (middle-drag) and zoom (wheel) are still in _input.
+	var fwd := -Vector3(sin(_yaw), 0.0, cos(_yaw))   # camera facing, flattened to ground
+	var right := Vector3(-fwd.z, 0.0, fwd.x)
+	var pan := Vector3.ZERO
+	if Input.is_physical_key_pressed(KEY_W): pan += fwd
+	if Input.is_physical_key_pressed(KEY_S): pan -= fwd
+	if Input.is_physical_key_pressed(KEY_D): pan += right
+	if Input.is_physical_key_pressed(KEY_A): pan -= right
+	if pan != Vector3.ZERO:
+		pan = pan.normalized()
+	if Input.is_physical_key_pressed(KEY_E): pan.y += 1.0
+	if Input.is_physical_key_pressed(KEY_Q): pan.y -= 1.0
+	if pan == Vector3.ZERO:
+		return
+	_target += pan * config.pan_speed * _distance * delta
+	_update_camera()
+
+
 # --- Input ------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -360,12 +383,10 @@ func _apply_cell(cell: Vector2i, add: bool) -> void:
 		Tool.HULL:
 			_model.set_hull(_active_deck, cell, add)
 		Tool.ROUTE:
-			if _overlay == "":
-				return
 			# Conduits may only run where there is hull.
 			if add and not _model.has_hull(_active_deck, cell):
 				return
-			_model.set_conduit(_overlay, _active_deck, cell, add)
+			_model.set_conduit(_route_net, _active_deck, cell, add)
 		Tool.RISER:
 			# A riser links this deck's networks to the deck above at this cell.
 			if add and not _model.has_hull(_active_deck, cell):
@@ -542,10 +563,15 @@ func _render() -> void:
 			_render_deck(d, false)
 		if _overlay == "":
 			ShipRenderer.add_walls(_world, _model, config, _deck_count)
+			ShipRenderer.add_roof(_world, _model, config, _deck_count)
 	else:
 		if _active_deck - 1 >= 0:
 			_render_deck(_active_deck - 1, true)  # ghost the deck below for context
 		_render_deck(_active_deck, false)
+		# Faint shell around the active deck so the floor reads as an enclosed ship
+		# room while building, without hiding the top-down placement view.
+		if _overlay == "":
+			ShipRenderer.add_walls(_world, _model, config, _deck_count, config.edit_shell_alpha, _active_deck)
 	_render_risers()
 	_update_preview()
 
@@ -810,6 +836,14 @@ func _build_ui() -> void:
 	rotate.pressed.connect(_rotate_placement)
 	_module_picker.add_child(rotate)
 
+	# Route palette (visible for the Route tool): pick what you place — independent
+	# of the overlay, which is only what you see.
+	_route_picker = HBoxContainer.new()
+	_route_picker.add_theme_constant_override("separation", 6)
+	build.add_child(_route_picker)
+	_route_buttons["power"] = _add_route("⚡ Power cable", "power")
+	_route_buttons["heat"] = _add_route("♨ Heat pipe", "heat")
+
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 6)
 	build.add_child(tools)
@@ -879,6 +913,7 @@ func _build_ui() -> void:
 	hints.add_child(_mouse_hint(MouseGlyph.LEFT, "Select / build · drag to move"))
 	hints.add_child(_mouse_hint(MouseGlyph.RIGHT, "Erase"))
 	hints.add_child(_mouse_hint(MouseGlyph.WHEEL, "Drag orbit · scroll zoom"))
+	hints.add_child(_key_hint("WASD", "Move · QE up/down"))
 	hints.add_child(_key_hint("R", "Rotate"))
 	hints.add_child(_key_hint("C", "Copy"))
 
@@ -894,6 +929,13 @@ func _add_overlay(bar: HBoxContainer, text: String, net: String) -> Button:
 	var b := _button(text)
 	b.pressed.connect(_set_overlay.bind(net))
 	bar.add_child(b)
+	return b
+
+
+func _add_route(text: String, net: String) -> Button:
+	var b := _button(text)
+	b.pressed.connect(_set_route_net.bind(net))
+	_route_picker.add_child(b)
 	return b
 
 
@@ -953,9 +995,8 @@ func _set_tool(tool: int) -> void:
 		_selected = {}
 		_moving = false
 		_render()
-	if tool == Tool.ROUTE and _overlay == "":
-		_set_overlay("power")
-		return
+	if tool == Tool.ROUTE:
+		_set_overlay(_route_net)   # show the network you're about to route
 	_refresh_ui()
 	_update_preview()
 
@@ -964,6 +1005,15 @@ func _set_overlay(net: String) -> void:
 	_overlay = net
 	_solve()
 	_render()
+	_refresh_ui()
+
+
+func _set_route_net(net: String) -> void:
+	_route_net = net
+	if _tool != Tool.ROUTE:
+		_set_tool(Tool.ROUTE)   # _set_tool syncs the overlay to _route_net
+	else:
+		_set_overlay(net)
 	_refresh_ui()
 
 
@@ -1027,6 +1077,9 @@ func _refresh_ui() -> void:
 	if _deck_label:
 		_deck_label.text = "%d/%d" % [_active_deck + 1, _deck_count]
 	_module_picker.visible = _tool == Tool.MODULE
+	_route_picker.visible = _tool == Tool.ROUTE
+	for n in _route_buttons:
+		_route_buttons[n].modulate = Color.WHITE if n == _route_net else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
 	_rebuild_diagnostics()
 

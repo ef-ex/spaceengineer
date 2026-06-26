@@ -5,7 +5,8 @@ orchestration roles + skills). The rules that matter for building this game are 
 plus project-specific conventions. Per Vela's meta-rule, skills/roles stay project-agnostic and
 project specifics live here.
 
-> "Space Engineer" is a placeholder name. Design is the source of truth in `documentation/`.
+> Working title: **Rigger's Hullworks** (diegetic — named after the player's in-game ship workshop).
+> The `spaceengineer` folder/config id is a legacy placeholder. Design is the source of truth in `documentation/`.
 
 ## How to work (Vela coding-agent rules)
 
@@ -69,6 +70,6 @@ or change game code, query the graph first:
 
 - Query (global CLI), run from `godot/`: `graphify query "<question>"`
 - Rebuild after code changes, run from `godot/`:
-  `PYTHONPATH=F:\projects\graphify\src F:\projects\graphify\.venv\Scripts\python.exe -m godot_graphify . --build --label "Space Engineer"`
+  `PYTHONPATH=F:\projects\graphify\src F:\projects\graphify\.venv\Scripts\python.exe -m godot_graphify . --build --label "Rigger's Hullworks"`
 
 Cold Read/Grep is the fallback when the graph doesn't surface enough.

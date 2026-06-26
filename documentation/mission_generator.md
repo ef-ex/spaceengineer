@@ -1,7 +1,7 @@
 # Mission / Contract Generator — Spec
 
 **Status:** Active design (2026-06-22).
-**Working title:** "Space Engineer" is a placeholder — no final name chosen yet.
+**Working title:** **Rigger's Hullworks** (chosen 2026-06-26). See `game_vision.md`.
 **Related:** `game_vision.md`, `ship_designer_spec.md` (shares the precalc solver), `prototype_scope.md`.
 
 ---

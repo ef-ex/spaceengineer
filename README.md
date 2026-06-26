@@ -1,11 +1,12 @@
-# Space Engineer (working title)
+# Rigger's Hullworks (working title)
 
 A 3D ship-design game: clients commission ships, you design them (free-form hull + a functional,
 network-routed interior), deliver, get paid and rated, and rise from an unknown shop to a legendary
 shipwright. The career capstone — designing humanity's generation ship — bridges into the sister
 project **Galaxia**.
 
-> **"Space Engineer" is a placeholder name.** See `documentation/` for the full design.
+> **"Rigger's Hullworks"** is the working title (a diegetic name — the game is named after the
+> player's in-game ship workshop). See `documentation/` for the full design.
 
 ## Repository layout
 
