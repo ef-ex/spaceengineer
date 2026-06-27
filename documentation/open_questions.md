@@ -33,6 +33,41 @@ End goal = design the **generation ship** (bridges to Galaxia's panspermia). Ope
 framing wraps the climb (cutscenes? just escalating contracts + awards?), and how the capstone
 commission is structured (a special large build vs. a scripted finale).
 
+### 6. Interior network puzzle is too shallow — OPEN (defer until prototype is feature-complete)
+Observed in play (2026-06-26): routing power/heat is "place some stuff, connect the dots, done" — not
+much of a puzzle. **Root cause: interior space is free and abundant**, so the only real constraint is
+capacity (supply ≥ demand), trivially solved by adding another reactor. A constraint-satisfaction
+puzzle needs **scarcity + competing pressures on the same resource (space)**. Note the asymmetry: the
+gate-fit constraint already makes the *exterior* a real puzzle; the *interior* has no equivalent
+pressure. Candidate levers (none chosen):
+- Conduits cost money / take space / have a length budget → routing becomes an optimization, not a free line.
+- Per-segment throughput (thin lines carry little → trunk-and-branch topology).
+- Heat radiators must sit on the hull surface AND reactor heat must route there, so heat and power
+  networks **compete** for the same interior space.
+- Proximity / adjacency rules (crew away from reactors, etc.).
+
+The building/aesthetic act is already fun; the puzzle isn't carrying its weight yet — a real finding
+for the demand test (the fun may live more in *building* than in *wiring*). **Deferred on purpose:**
+finish the missing prototype pieces first (gate-as-build-bound, auto-furnishing) before adding depth,
+so we don't over-build an unproven layer. Where the fun actually is = a playtest question.
+
+### 7. Drake sub-types: single-seater vs small-craft — OPEN (likely resolves with hull pieces)
+Within Drake there are really two silhouettes: **single-seaters** (X-/A-wing — cockpit-only, the ship
+IS its shape) and **small crafts** (Trek shuttle — a small walkable cabin). Both must be buildable.
+Provisional read: this is a **spectrum the two-layer model already spans**, not two systems — a
+single-seater is exterior-dominant (structure + cockpit + engines, near-zero interior); a shuttle adds
+a small interior cluster. What makes them feel distinct is the **procedural hull pieces** (a sleek
+swept fighter hull vs a boxy shuttle), so the hunch that "the answer comes once the hull elements +
+the rest are in" is probably right. Sub-questions to settle then:
+- Is a cockpit a 1-cell **room** or an **equipment** piece? (Single-seaters want the latter.)
+- **Structural/external hull vs habitable interior** — the meaty one. Today the shell walls + ceilings
+  every hull cell, which would wrongly enclose an X-wing's wings/nose. The model likely needs to mark
+  cells (or hull pieces) as structural (frame, not pressurized, no walls) vs habitable (walkable, walled).
+  This is also what lets the interior/network puzzle degrade gracefully to near-nothing for a single-seater
+  without feeling broken (see [[#6]]).
+Deferred — don't design now; revisit alongside the hull-piece system. Build model in
+`ships_and_stations_design.md`.
+
 ---
 
 ## Important — full-game coherence

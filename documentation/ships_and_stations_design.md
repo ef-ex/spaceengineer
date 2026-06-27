@@ -64,7 +64,16 @@ them with **four systems**, foundation first:
    generation (see `ship_designer_spec.md` → "Prototype hull pieces").
 2. **Decorative objects.** Freely placed props (some procedurally adjustable). Includes **posed
    puppets** — *static* crew figures for scale/life (no animation/pathing; animated NPCs are far later).
-3. **Custom modeling tools.** Freeform shapes for bespoke bits the piece library doesn't cover.
+3. **Custom modeling tools + surface detailing.** Freeform shapes for bespoke bits the piece library
+   doesn't cover, plus **player-drawn surface detail**. Flagship example — a **panel-line tool**: the
+   player draws a spline on the hull surface and it generates a ribbon along the surface with a chosen
+   panel-line texture (a Houdini SOP reimagined as a *runtime* tool — this is the Tiny Glade "port the
+   procedural generation into the game" move, see Quality north-star below). **Cheapest runtime path:
+   projected decals along the spline** (Godot `Decal` nodes), NOT runtime mesh export or texture baking.
+   **Pragmatic sequencing:** author the look in Houdini first (ship as baked/decal assets) and only port
+   to a live in-game tool if it earns its place. A lot of the intended detailers (panel lines, greebles,
+   vents, plating) already exist as Houdini intents — each is a candidate for this author-first → port-later
+   path. **Vision-tier; explicitly OUT of the prototype** (advanced art tools — `prototype_scope.md`).
 4. **Functional parts.** The modules that make the ship work (the prototype's module/network puzzle).
 
 **Interior architecture (vision):** walls / doors / windows to form rooms, and stairs/elevators
@@ -77,6 +86,39 @@ make-or-break, not the tech (cf. Juno/Spore's reshapeable parts).
 > Vision, not prototype. The prototype stays cell-painting + box/recipe modules (`prototype_scope.md`).
 > `ship_designer_spec.md` holds the shape-tool ladder and the forward-compat rule that keeps this
 > reachable.
+
+### Quality north-star — Tiny Glade (build feel + mesh quality)
+The long-term quality bar for the *building experience* is **Tiny Glade** (Pounce Light). What that
+actually means, from the developers' own talks (confirmed vs. flagged):
+
+- **Author rules, not geometry.** The player expresses *intent*; the system resolves the detail.
+  (Opara: *"complexity emerges from the interaction of simple rules"*, *"I create every single rule
+  that goes into the system."*) This is exactly our forward-compat invariant — hull pieces *emit*
+  cells; the mesh is downstream.
+- **Many small per-element generators, built incrementally** — not one monolith. (Opara: *"a lot of
+  algorithms and generators, each tailored to a specific element."*) Tiny Glade itself began as just a
+  procedural **wall** generator. → Build our detailers one at a time (hull piece → panel lines →
+  greebles), each a self-contained tool.
+- **Curate constraints for *feel*** — it took the devs *"five or six iterations"* to make rules feel
+  intuitive, not restrictive. The feel is the work, not the rules existing.
+- **Lighting is ~half the perceived quality.** Tiny Glade's look is a **bespoke ray-marched real-time
+  GI** renderer (Stachowiak: *"Rendering tiny glades with entirely too much ray marching"* — real-time
+  GI, tilt-shift DoF, stable soft shadows). It is **NOT Gaussian splatting** (a common misattribution;
+  no evidence found). Validates investing early in designer lighting/materials.
+- **DECIDED (2026-06-26): no custom / from-scratch renderer, ever.** Tiny Glade's renderer is a
+  multi-year specialist effort (custom engine on modified Bevy/Rust + compute shaders + ray-marched GI;
+  Stachowiak also authored the "kajiya" GI renderer) — explicitly **out of scope**. We **push Godot's
+  built-in rendering** to squeeze out fidelity: **SDFGI / lightmaps, good PBR materials, post (DoF /
+  bloom / tonemap), soft shadows, and art direction.** Visual quality comes from lighting + material +
+  art-direction tuning, not engine R&D — ~80% of the feel at a fraction of the cost.
+- **Their runtime-GPU geometry generation is the expensive path.** Our authored-mesh + morph-handle
+  plan (emit cells, author the skin) is a deliberate cheaper shortcut to a similar feel; full
+  runtime-generative pieces stay the long-term vision tier.
+
+Sources: [80.lv dev interview](https://80.lv/articles/exclusive-tiny-glade-developers-discuss-bevy-proceduralism-publishers-cozy-games),
+[Graphics Programming Conference 2024 — Stachowiak talk](https://graphicsprogrammingconference.com/archive/2024/),
+[80.lv: believability in procedural modelling](https://80.lv/articles/siggraph-believability-in-procedural-modelling).
+(Researched 2026-06-26; flagged claims are where sources were thin or contradicted.)
 
 ---
 
