@@ -15,6 +15,9 @@ var risers: Dictionary = {}
 # deck:int -> { String: true }   (an opening on the wall edge between two adjacent
 # cells, keyed canonically so two rooms sharing the edge see one door)
 var doors: Dictionary = {}
+# deck:int -> { wall_key:String -> skin_id:String }   (a swapped hull-wall skin on the
+# exposed edge of a hull cell; absent = the default auto-generated wall)
+var wall_skins: Dictionary = {}
 
 
 # --- Hull -------------------------------------------------------------------
@@ -165,6 +168,25 @@ func set_door(deck: int, a: Vector2i, b: Vector2i, present: bool) -> void:
 		doors[deck].erase(_edge_key(a, b))
 
 
+# --- Wall skins -------------------------------------------------------------
+
+static func wall_key(cell: Vector2i, dir: Vector2i) -> String:
+	# Identifies a wall: the exposed edge of hull `cell` facing `dir` (open space).
+	return "%d,%d,%d,%d" % [cell.x, cell.y, dir.x, dir.y]
+
+
+func wall_skin(deck: int, cell: Vector2i, dir: Vector2i) -> String:
+	return wall_skins.get(deck, {}).get(wall_key(cell, dir), "")
+
+
+func set_wall_skin(deck: int, cell: Vector2i, dir: Vector2i, skin_id: String) -> void:
+	if skin_id == "":
+		if wall_skins.has(deck):
+			wall_skins[deck].erase(wall_key(cell, dir))
+	else:
+		wall_skins.get_or_add(deck, {})[wall_key(cell, dir)] = skin_id
+
+
 # --- Aggregate queries ------------------------------------------------------
 
 func total_cost() -> int:
@@ -224,6 +246,7 @@ func to_dict() -> Dictionary:
 		"conduits": _deep_copy(conduits),
 		"risers": _deep_copy(risers),
 		"doors": _deep_copy(doors),
+		"wall_skins": _deep_copy(wall_skins),
 	}
 
 
@@ -233,6 +256,7 @@ func from_dict(data: Dictionary) -> void:
 	conduits = _deep_copy(data.get("conduits", {}))
 	risers = _deep_copy(data.get("risers", {}))
 	doors = _deep_copy(data.get("doors", {}))
+	wall_skins = _deep_copy(data.get("wall_skins", {}))
 
 
 # --- Internals --------------------------------------------------------------
@@ -256,6 +280,9 @@ func _clear_cell_dependents(deck: int, cell: Vector2i) -> void:
 	if doors.has(deck):
 		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 			doors[deck].erase(_edge_key(cell, cell + dir))
+	if wall_skins.has(deck):
+		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+			wall_skins[deck].erase(wall_key(cell, dir))
 
 
 func _deep_copy(value: Variant) -> Variant:

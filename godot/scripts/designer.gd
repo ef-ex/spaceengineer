@@ -9,7 +9,7 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
-enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR }
+enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL }
 
 @export var config: DesignerConfig
 @export var catalog: ModuleCatalog
@@ -21,8 +21,11 @@ var _overlay: String = ""          # "", "power", "heat" — what the world is d
 var _route_net: String = "power"   # which network the Route tool places (picked in the Route palette)
 var _active_module: String = ""    # selected equipment id for the Equipment tool
 var _active_room: String = ""      # selected room type for the Rooms tool
+var _active_skin: String = ""      # selected hull-wall skin for the Walls tool ("" = default/remove)
 var _place_rot: int = 0            # rotation (quarter-turns) for the next placement
 var _selected: Dictionary = {}     # the module entry picked in Select mode
+var _wall_sel: Dictionary = {}     # "deck|wall_key" -> {deck,cell,dir}; multi-selected walls
+var _wall_anchor: Variant = null   # last single-clicked wall, anchor for shift range-select
 var _sel_deck: int = 0
 var _moving := false               # dragging the selected module to a new cell
 var _drag_origin := Vector2i.ZERO  # selected module's origin when the drag began
@@ -31,6 +34,8 @@ var _deck_count: int = 1
 var _mirror := false
 var _full_view := false
 var _gate_proxy: Node3D   # toggleable size reference for the contract gate
+var _unit_ref: Node3D     # toggleable 1×1×1 reference cube (Houdini→Godot import-scale check)
+var _human_ref: Node3D    # toggleable 1.8 m human yardstick (tile-size / deck-height feel check)
 
 var _undo: Array = []
 var _redo: Array = []
@@ -54,6 +59,7 @@ var _drag_start := Vector2i.ZERO
 var _hover: Variant = null
 var _last_cell: Variant = null   # last in-grid cell, so drags off the edge still resolve
 var _hover_edge: Variant = null  # {cell, dir} wall edge under the cursor, for the Doors tool
+var _hover_wall: Variant = null  # {deck, cell, dir} wall under the cursor (raycast), for the Walls tool
 
 # UI refs
 var _tool_buttons := {}
@@ -64,6 +70,8 @@ var _route_buttons := {}
 var _route_picker: Control
 var _room_buttons := {}
 var _room_picker: Control
+var _wall_buttons := {}
+var _wall_picker: Control
 var _stat_box: VBoxContainer
 var _diag_bar: PanelContainer
 var _diag_label: Label
@@ -104,6 +112,8 @@ func _ready() -> void:
 	_preview = Node3D.new()
 	add_child(_preview)
 	_build_gate_proxy()
+	_build_unit_ref()
+	_build_human_ref()
 	_build_forward_indicator()
 	_build_ui()
 	_update_camera()
@@ -150,6 +160,72 @@ func _build_gate_proxy() -> void:
 func _set_gate(on: bool) -> void:
 	if _gate_proxy:
 		_gate_proxy.visible = on
+
+
+func _build_unit_ref() -> void:
+	# The imported FBX unit cube, anchored so its near-lower corner sits at grid cell
+	# (0,0) on deck 0: a true 1 m cube then fills exactly one cell — a live check that
+	# the Houdini→Godot FBX scale (root_scale=100) really lands at 1 unit = 1 cell.
+	var scene := load("res://models/unitcube.fbx")
+	if scene == null:
+		return
+	_unit_ref = scene.instantiate()
+	add_child(_unit_ref)
+	var aabb := _node_aabb(_unit_ref)
+	var floor_top := _floor_y(0) + config.cell_size * 0.12   # top of the deck slab
+	_unit_ref.position = Vector3(-aabb.position.x, floor_top - aabb.position.y, -aabb.position.z)
+	_unit_ref.visible = false
+
+
+func _node_aabb(root: Node3D) -> AABB:
+	# Union of the instance's mesh AABBs (cube is shallow, so child.transform is
+	# relative to root) — used to anchor the reference cube by its corner.
+	var out := AABB()
+	var has := false
+	for child in root.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = child.transform * child.get_aabb()
+		out = a if not has else out.merge(a)
+		has = true
+	return out
+
+
+func _set_unit_ref(on: bool) -> void:
+	if _unit_ref:
+		_unit_ref.visible = on
+
+
+func _build_human_ref() -> void:
+	# A 1.8 m capsule standing on a floor tile — the human-scale yardstick for tuning
+	# tile size and deck height (does a person fit, or is it a coffin?). On by default
+	# while we dial the scale; toggle off with the "Human" check.
+	_human_ref = Node3D.new()
+	var mi := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.25
+	cap.height = 1.8
+	mi.mesh = cap
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.88, 0.55, 0.35)
+	mi.material_override = m
+	mi.position = Vector3(0, cap.height * 0.5, 0)   # feet on the tile
+	_human_ref.add_child(mi)
+	var l := Label3D.new()
+	l.text = "1.8 m"
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.pixel_size = 0.008
+	l.position = Vector3(0, cap.height + 0.2, 0)
+	l.modulate = Color(1, 0.85, 0.7)
+	l.outline_size = 4
+	_human_ref.add_child(l)
+	# Stand in tile (2,2), clear of the unit cube in (0,0).
+	var floor_top := _floor_y(0) + config.cell_size * 0.12
+	_human_ref.position = Vector3(2.5 * config.cell_size, floor_top, 2.5 * config.cell_size)
+	add_child(_human_ref)
+
+
+func _set_human_ref(on: bool) -> void:
+	if _human_ref:
+		_human_ref.visible = on
 
 
 func _build_forward_indicator() -> void:
@@ -277,6 +353,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_hover = _resolve_cell(event.position)
 			if _tool == Tool.DOOR:
 				_hover_edge = _edge_at(event.position)
+			elif _tool == Tool.WALL:
+				_hover_wall = _wall_at(event.position)
 			_update_preview()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		_key(event)
@@ -318,6 +396,9 @@ func _key(event: InputEventKey) -> void:
 func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 	var cell = _resolve_cell(event.position)
 	if event.pressed:
+		if _tool == Tool.WALL:
+			_wall_click(event.position, add, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
+			return
 		if cell == null:
 			return
 		match _tool:
@@ -715,6 +796,8 @@ func _render() -> void:
 		if _overlay == "":
 			ShipRenderer.add_walls(_world, _model, config, _deck_count, config.edit_shell_alpha, _active_deck)
 	_render_risers()
+	if _tool == Tool.WALL:
+		_render_wall_selection()
 	_update_preview()
 
 
@@ -850,6 +933,11 @@ func _update_preview() -> void:
 			var ecol := config.ghost_color if ok else config.ghost_invalid_color
 			var esize := Vector3(0.16, config.deck_height * 0.55, config.cell_size * 0.85) if ed.x != 0 else Vector3(config.cell_size * 0.85, config.deck_height * 0.55, 0.16)
 			_add_box(_preview, Vector3(ex, _floor_y(_active_deck) + config.deck_height * 0.3, ez), esize, ecol, true, true)
+		return
+
+	if _tool == Tool.WALL:
+		if _hover_wall != null:
+			_add_wall_marker(_preview, _hover_wall.cell, _hover_wall.dir, config.ghost_color)
 		return
 
 	if _dragging and _tool != Tool.MODULE and _hover is Vector2i:
@@ -1057,6 +1145,15 @@ func _build_ui() -> void:
 	_route_buttons["power"] = _add_route("⚡ Power cable", "power")
 	_route_buttons["heat"] = _add_route("♨ Heat pipe", "heat")
 
+	# Walls palette (visible for the Walls tool): select walls, then click a skin to
+	# apply it. "Default" clears the skin back to the plain auto-wall.
+	_wall_picker = HBoxContainer.new()
+	_wall_picker.add_theme_constant_override("separation", 6)
+	build.add_child(_wall_picker)
+	_wall_buttons[""] = _add_skin("Default", "")
+	for s in HullSkins.SKINS:
+		_wall_buttons[s.id] = _add_skin(s.name, s.id)
+
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 6)
 	build.add_child(tools)
@@ -1064,6 +1161,7 @@ func _build_ui() -> void:
 	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
 	_tool_buttons[Tool.ROOM] = _add_tool(tools, "Rooms", Tool.ROOM)
 	_tool_buttons[Tool.DOOR] = _add_tool(tools, "Doors", Tool.DOOR)
+	_tool_buttons[Tool.WALL] = _add_tool(tools, "Walls", Tool.WALL)
 	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Equipment", Tool.MODULE)
 	_tool_buttons[Tool.ROUTE] = _add_tool(tools, "Route", Tool.ROUTE)
 	_tool_buttons[Tool.RISER] = _add_tool(tools, "Riser", Tool.RISER)
@@ -1115,22 +1213,20 @@ func _build_ui() -> void:
 		gate_check.focus_mode = Control.FOCUS_NONE
 		gate_check.toggled.connect(_set_gate)
 		deckrow.add_child(gate_check)
+	var cube_check := CheckButton.new()
+	cube_check.text = "Cube"
+	cube_check.tooltip_text = "Show a 1×1×1 reference cube in corner cell (0,0) — checks the FBX import scale"
+	cube_check.focus_mode = Control.FOCUS_NONE
+	cube_check.toggled.connect(_set_unit_ref)
+	deckrow.add_child(cube_check)
+	var human_check := CheckButton.new()
+	human_check.text = "Human"
+	human_check.tooltip_text = "Show a 1.8 m human standing on a tile — the scale yardstick"
+	human_check.button_pressed = true
+	human_check.focus_mode = Control.FOCUS_NONE
+	human_check.toggled.connect(_set_human_ref)
+	deckrow.add_child(human_check)
 
-	# --- Bottom-right: control hints (mouse glyphs + action) --------------------
-	var hints := HBoxContainer.new()
-	hints.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	hints.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	hints.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	hints.offset_right = -12
-	hints.offset_bottom = -12
-	hints.add_theme_constant_override("separation", 16)
-	root.add_child(hints)
-	hints.add_child(_mouse_hint(MouseGlyph.LEFT, "Select / build · drag to move"))
-	hints.add_child(_mouse_hint(MouseGlyph.RIGHT, "Erase"))
-	hints.add_child(_mouse_hint(MouseGlyph.WHEEL, "Drag orbit · scroll zoom"))
-	hints.add_child(_key_hint("WASD", "Move · QE up/down"))
-	hints.add_child(_key_hint("R", "Rotate"))
-	hints.add_child(_key_hint("C", "Copy"))
 
 
 func _add_tool(bar: HBoxContainer, text: String, tool: int) -> Button:
@@ -1170,38 +1266,6 @@ func _open_menu() -> void:
 	add_child(preload("res://scenes/game_menu.tscn").instantiate())
 
 
-func _mouse_hint(which: int, action: String) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 5)
-	var g := MouseGlyph.new()
-	g.which = which
-	h.add_child(g)
-	h.add_child(_hint_label(action))
-	return h
-
-
-func _key_hint(key: String, action: String) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 5)
-	var cap := Label.new()
-	cap.text = key
-	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cap.custom_minimum_size = Vector2(18, 0)
-	var pc := PanelContainer.new()
-	pc.add_child(cap)
-	h.add_child(pc)
-	h.add_child(_hint_label(action))
-	return h
-
-
-func _hint_label(action: String) -> Label:
-	var l := Label.new()
-	l.text = action
-	l.modulate = Color(1, 1, 1, 0.7)
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	return l
-
-
 # --- UI actions -------------------------------------------------------------
 
 func _set_tool(tool: int) -> void:
@@ -1210,6 +1274,11 @@ func _set_tool(tool: int) -> void:
 		_selected = {}
 		_moving = false
 		_render()
+	if tool != Tool.WALL:
+		_wall_anchor = null
+		if not _wall_sel.is_empty():
+			_wall_sel.clear()
+			_render()
 	if tool == Tool.ROUTE:
 		_set_overlay(_route_net)   # show the network you're about to route
 	_refresh_ui()
@@ -1230,6 +1299,151 @@ func _set_room(id: String) -> void:
 	else:
 		_refresh_ui()
 		_update_preview()
+
+
+# --- Walls tool (select hull-wall edges, swap their skin) --------------------
+
+func _add_skin(text: String, skin_id: String) -> Button:
+	var b := _button(text)
+	b.pressed.connect(_set_skin.bind(skin_id))
+	_wall_picker.add_child(b)
+	return b
+
+
+func _set_skin(skin_id: String) -> void:
+	# Select walls first, then click a skin to apply it to the whole selection.
+	_active_skin = skin_id
+	if _tool != Tool.WALL:
+		_set_tool(Tool.WALL)
+	if not _wall_sel.is_empty():
+		_apply_skin_to_selection()
+	_refresh_ui()
+
+
+func _apply_skin_to_selection() -> void:
+	if _wall_sel.is_empty():
+		return
+	_push_undo()
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		_model.set_wall_skin(w.deck, w.cell, w.dir, _active_skin)
+	_post_change()
+
+
+func _wall_at(screen_pos: Vector2) -> Variant:
+	# Raycast the camera ray against every exposed wall on the active deck — each a
+	# vertical quad from floor to ceiling — and return the nearest {deck, cell, dir}.
+	# Picking the real geometry lets you hit a wall anywhere on its face, not just
+	# where it meets the floor (the old floor-plane projection only lined up at the base).
+	var from := _cam.project_ray_origin(screen_pos)
+	var ray := _cam.project_ray_normal(screen_pos)
+	var cs := config.cell_size
+	var slab := cs * 0.12
+	var y0 := _floor_y(_active_deck) + slab
+	var y1 := y0 + (config.deck_height - slab)
+	var best_t := INF
+	var best: Variant = null
+	for cell in _model.hull_cells(_active_deck):
+		for wdir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
+			if _model.has_hull(_active_deck, cell + wdir):
+				continue   # interior edge — no wall here
+			var n := Vector3(wdir.x, 0.0, wdir.y)          # the wall's horizontal normal
+			var denom := ray.dot(n)
+			if absf(denom) < 1e-6:
+				continue   # ray parallel to the wall
+			var ex: float = (cell.x + 0.5) * cs + wdir.x * cs * 0.5
+			var ez: float = (cell.y + 0.5) * cs + wdir.y * cs * 0.5
+			var t: float = (Vector3(ex, 0.0, ez) - from).dot(n) / denom
+			if t <= 0.0 or t >= best_t:
+				continue
+			var hit := from + ray * t
+			if hit.y < y0 or hit.y > y1:
+				continue   # above or below the wall
+			var tangent: float = absf(hit.z - (cell.y + 0.5) * cs) if wdir.x != 0 else absf(hit.x - (cell.x + 0.5) * cs)
+			if tangent > cs * 0.5:
+				continue   # off the end of this cell's segment
+			best_t = t
+			best = {"deck": _active_deck, "cell": cell, "dir": wdir}
+	return best
+
+
+func _wall_click(screen_pos: Vector2, add: bool, shift: bool, ctrl: bool) -> void:
+	if not add:
+		_wall_sel.clear()   # right-click clears the selection
+		_render()
+		_refresh_ui()
+		return
+	var w = _wall_at(screen_pos)
+	if w == null:
+		if not shift and not ctrl:
+			_wall_sel.clear()
+			_render()
+			_refresh_ui()
+		return
+	var key := "%d|%s" % [w.deck, ShipDesign.wall_key(w.cell, w.dir)]
+	if shift and _wall_anchor != null:
+		# Range select (file-explorer style): the straight run of same-facing walls from
+		# the anchor to here. Replaces the selection; the anchor stays for further extends.
+		var run := _wall_run(_wall_anchor, w)
+		if run.is_empty():
+			_wall_sel[key] = w        # not a straight run — just add the clicked wall
+			_wall_anchor = w
+		else:
+			_wall_sel = run
+	elif ctrl:
+		if _wall_sel.has(key):
+			_wall_sel.erase(key)
+		else:
+			_wall_sel[key] = w
+		_wall_anchor = w
+	else:
+		_wall_sel.clear()
+		_wall_sel[key] = w
+		_wall_anchor = w
+	_render()
+	_refresh_ui()
+
+
+func _wall_run(a: Dictionary, b: Dictionary) -> Dictionary:
+	# Walls on the straight run between two same-facing walls a..b (file-explorer range).
+	# Empty unless they share a deck + facing and lie on one row/column; gaps (missing
+	# hull) are skipped so an L-bend or hole doesn't grab walls that aren't there.
+	var out: Dictionary = {}
+	if a.deck != b.deck or a.dir != b.dir:
+		return out
+	var d: int = a.deck
+	var dir: Vector2i = a.dir
+	var ac: Vector2i = a.cell
+	var bc: Vector2i = b.cell
+	if dir.y != 0 and ac.y == bc.y:                       # faces ±z → run along x
+		for x in range(mini(ac.x, bc.x), maxi(ac.x, bc.x) + 1):
+			var c := Vector2i(x, ac.y)
+			if _model.has_hull(d, c) and not _model.has_hull(d, c + dir):
+				out["%d|%s" % [d, ShipDesign.wall_key(c, dir)]] = {"deck": d, "cell": c, "dir": dir}
+	elif dir.x != 0 and ac.x == bc.x:                     # faces ±x → run along z
+		for z in range(mini(ac.y, bc.y), maxi(ac.y, bc.y) + 1):
+			var c := Vector2i(ac.x, z)
+			if _model.has_hull(d, c) and not _model.has_hull(d, c + dir):
+				out["%d|%s" % [d, ShipDesign.wall_key(c, dir)]] = {"deck": d, "cell": c, "dir": dir}
+	return out
+
+
+func _render_wall_selection() -> void:
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		if w.deck == _active_deck:
+			_add_wall_marker(_world, w.cell, w.dir, Color(0.40, 0.72, 1.0, 0.5))
+
+
+func _add_wall_marker(parent: Node, cell: Vector2i, dir: Vector2i, col: Color) -> void:
+	var half := config.cell_size * 0.5
+	var slab := config.cell_size * 0.12
+	var wh := config.deck_height - slab
+	var y := _floor_y(_active_deck) + slab + wh * 0.5
+	var cx := (cell.x + 0.5) * config.cell_size + dir.x * half
+	var cz := (cell.y + 0.5) * config.cell_size + dir.y * half
+	var size := Vector3(0.16, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, 0.16)
+	_add_box(parent, Vector3(cx, y, cz), size * 1.02, col, true, true)
 
 
 func _set_route_net(net: String) -> void:
@@ -1307,6 +1521,9 @@ func _refresh_ui() -> void:
 	_room_picker.visible = _tool == Tool.ROOM
 	for id in _room_buttons:
 		_room_buttons[id].modulate = Color.WHITE if id == _active_room else Color(1, 1, 1, 0.5)
+	_wall_picker.visible = _tool == Tool.WALL
+	for id in _wall_buttons:
+		_wall_buttons[id].modulate = Color.WHITE if id == _active_skin else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
 	_rebuild_diagnostics()
 

@@ -17,11 +17,11 @@ avoid divergence. Recommendation: keep this (Rigger's Hullworks) copy canonical;
 Ship identity runs on three independent axes. Most ship-builders have one or two; this design has all three.
 
 1. **Class = size / crew capacity, NOT grid scale.** Drake (crew 1–3) / Goliath (4–20) /
-   Titan (100–1000). All classes share **one grid unit and one module mesh set** — bigger class =
+   Titan (100–1000) / Leviathan (colony-scale). All classes share **one grid unit and one module mesh set** — bigger class =
    larger assembly of the same modules, not bigger meshes. This overrides Galaxia's
    `module_set_spec.md` (per-class grid scaling) to avoid the ~3000-mesh art cost. Size is measured
-   by tile/volume count. The generation ship (Galaxia's start) is a **special one-off capstone
-   commission** here, not a general class. See `ship_designer_spec.md`.
+   by tile/volume count. **Leviathan** is the largest class — the generation/colony-ship class; its
+   capstone build (Galaxia's start / the win condition) is the finale. See `game_vision.md`.
 2. **Pattern = design school.** Scientific / Industrial / Logistic / Living. Aesthetic + stat
    specialty + unlock gate. See Galaxia's `module_patterns.md`.
 3. **Role = what you install.** Miner / hauler / scout / colonizer emerges from the modules

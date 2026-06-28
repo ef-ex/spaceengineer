@@ -29,8 +29,9 @@ unable to carry you up the ladder.
   Err toward not nagging.
 
 ### 2. End-goal narrative depth — DECIDED direction, depth TBD
-End goal = design the **generation ship** (bridges to Galaxia's panspermia). Open: how much story/
-framing wraps the climb (cutscenes? just escalating contracts + awards?), and how the capstone
+End goal = design the **Leviathan** (humanity's generation ship; bridges to Galaxia's panspermia);
+the win is launching it into deep space to colonize a new galaxy. Open: how much story/framing wraps
+the climb (cutscenes? just escalating contracts + awards?), and how the capstone
 commission is structured (a special large build vs. a scripted finale).
 
 ### 6. Interior network puzzle is too shallow — OPEN (defer until prototype is feature-complete)
@@ -68,6 +69,21 @@ the rest are in" is probably right. Sub-questions to settle then:
 Deferred — don't design now; revisit alongside the hull-piece system. Build model in
 `ships_and_stations_design.md`.
 
+### 8. Shipyard economy tuning — OPEN (vision)
+The design-vs-build-vs-sell-the-design model is decided (see `game_vision.md` → Shipyards). Open:
+- **Sink balance:** how much bigger is the full build price vs the design-only fee, and how fast do
+  contract sizes escalate, so that buying the next yard reliably pays off without forcing it?
+- **Does selling-the-design still earn full reputation/rating?** (You fulfilled the commission, just
+  outsourced the build.) Leaning yes-but-reduced, so the build path is also the prestige path — TBD.
+- **Shipyard variety axes** beyond gate+size: gate *shape* (wide vs tall), and possibly build speed /
+  cost / pattern affinity. Don't over-design; a couple of meaningful axes.
+All playtest/tuning — vision, not prototype.
+
+### 9. Rectangle / marquee selection — DEFERRED (recurring UX want)
+The need keeps surfacing (multi-selecting walls, modules, cells). **Decided: not now.** The Walls tool
+ships with shift/ctrl-click multi-select; a general drag-rectangle marquee is a deferred, cross-tool
+UX upgrade to add once more than one tool clearly needs it. Don't build ahead of that.
+
 ---
 
 ## Important — full-game coherence
@@ -93,14 +109,14 @@ for beauty beyond function?). No blueprint *sharing* (that's a Galaxia thing).
 
 - **Network routing:** manual — drag cables/pipes that run in walls/floors. (`ship_designer_spec.md`)
 - **Multi-deck UX:** edit one deck at a time, up/down arrows to hide/reveal, plus full-ship view.
-- **Class model:** size not grid scale; one mesh set; Drake/Goliath/Titan; Leviathan cut; gen ship is
-  a capstone, not a class.
+- **Class model:** size not grid scale; one mesh set; Drake/Goliath/Titan/Leviathan; **Leviathan = the
+  largest (generation/colony-ship) class; its capstone build is the win condition** (see `game_vision.md`).
 - **Economy:** money → shipyards (sink); reputation → clients + shipyard/pattern unlocks; tech in
   shop. Penalties = reduced pay + rep hit (fines only on opt-in high-stakes), minimum-to-ship gate.
 - **Combat:** on hold / cut from this game.
 - **Stations:** not in this game (Galaxia only).
 - **Settings/menu:** in the prototype.
-- **End goal:** the generation ship (see #2 for remaining depth questions).
+- **End goal:** the **Leviathan** generation ship — the win condition (see #2 for remaining depth questions).
 - **Blueprint trivialization:** novelty score (canonicalize → fingerprint → similarity vs recent
   deliveries) feeding a client-tier-weighted soft rating modifier — blueprints stay valid for low-tier
   contracts but can't climb the prestige ladder. Tuning is playtest-only. (Full detail in #1.)

@@ -67,6 +67,16 @@ deliberate, bounded "authored art" exception in the prototype (justified by the 
 **Decision (overrides Galaxia `module_set_spec.md`):** classes do **not** change grid unit size.
 All classes share **one grid unit and one module mesh set**.
 
+**The grid unit (confirmed by play 2026-06-27):** 1 build tile = **1 m** (`cell_size = 1.0`;
+1 Godot unit = 1 Houdini m = 1 m — see the FBX pipeline). Deck/room height = **2.5 m**
+(`deck_height = 2.5`). **One grid only** — no nested 0.5/0.25 m sub-grids; cables/heat pipes route
+on the 1 m grid (a finer grid is *deferred* until edge-routing proves too coarse — the Satisfactory
+precedent treats small connectors as soft-clearance, not a second grid). Scale is tuned to the
+**Drake** (small craft): a 1-tile space is a coffin, a 2-tile-wide room feels right — **slightly
+cramped interiors are intentional** for small spacecraft (real stand-up vehicle cabins are only
+1.9–2.2 m; 2.5 m is deliberately a touch roomier for camera readability). Bigger classes get bigger
+by **tile count, not a bigger grid** (consistent with "Size = tile / volume count" below).
+
 - **Why:** per-class grid scaling forces re-creating every module at each scale — Galaxia's count
   reached ~3000 unique ship meshes, untenable for a solo dev. One shared mesh set serves all classes.
 - **Classes differ by size / crew capacity, not mesh scale.** A Titan is a much larger assembly of
@@ -77,9 +87,13 @@ All classes share **one grid unit and one module mesh set**.
 | Drake | 1–3 | Small ships (prototype focuses here) |
 | Goliath | 4–20 | Bigger working ships |
 | Titan | 100–1000 | Capital-scale |
+| Leviathan | colony-scale (thousands) | Generation/colony-ship class; its capstone build is the **win condition** (`game_vision.md`) |
 
-- **Generation ship** (the Galaxia bridge / end goal) is a **special one-off capstone commission**,
-  NOT a general class. (Leviathan as a class is dropped — a Galaxia concept.)
+- **Leviathan is the largest class** — the generation/colony-ship class (the name describes the
+  ship's function). Its **capstone commission** — humanity's generation ship — is the **win
+  condition** / Galaxia bridge (see `game_vision.md`). Adding it costs no extra meshes under the
+  shared-grid, size-by-tile-count model (a bigger assembly, like Titan), so the ~3000-mesh reason
+  Galaxia dropped it doesn't apply here.
 - **Size = tile / volume count** (reuse the existing tile count). Bigger class = more volume.
 - **Note for later (does NOT affect the Drake prototype):** a constant small grid makes Titan-scale
   tile counts large. Crew-per-module must scale nonlinearly (a Titan crew module holds far more than

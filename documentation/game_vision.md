@@ -38,6 +38,34 @@ gate, is functional) → get paid + rated → spend money / earn reputation → 
 > **Recovery floor (must design):** always keep low-tier "bread and butter" contracts available so a
 > player with bad ratings can grind back up. Prevents a reputation death-spiral. See `open_questions.md`.
 
+## Shipyards — the money sink (design vs. build vs. sell-the-design)
+
+How shipyards gate the economy **without gating creativity**:
+
+- **Design is free.** The player can design **any** ship at any time, regardless of which shipyard
+  they own. Creativity is never money-gated.
+- **Building for full price needs a big-enough yard.** You get the **full sale price** only if you own
+  a shipyard that can build the finished ship. If not, you **sell the design only** — the client has it
+  built elsewhere — for **much less**.
+- **Surface it as a simple binary; hide the mechanics.** The player just sees the outcome for *their*
+  yards: "build & sell for ¤X" vs "sell design only for ¤Y (≪ X)". No need to expose the rules.
+- **A shipyard is a gate + a size cap, not a class label.** Each yard is specified by its **gate
+  aperture (beam × height)** and a **max size/volume**. So owning a "Titan-capable" yard does **not**
+  mean you can build *every* Titan — a larger Titan needs a larger yard. Variety comes from differing
+  gate shapes/sizes (a wide-but-short yard vs a tall one favour different silhouettes).
+- **Two gate checks, different jobs** (the yard reuses the existing gate-fit constraint — see
+  `ships_and_stations_design.md` size-constraint scenarios):
+  - **Contract / delivery gate** — a *hard validity* constraint (the ship must reach the client; jump
+    gate, dock). Fail it and the design isn't a valid submission at all.
+  - **Shipyard / build gate** — a *soft economic* constraint (full build price vs design-only).
+- **Balance intent (the whole point of the sink):** building must beat selling-the-design by enough
+  that upgrading yards pays off, and **contract sizes must escalate** (via reputation-gated clients) so
+  the player keeps hitting the "too big for my yard" wall. **This is where the two axes meet:**
+  reputation brings the big commission; money (a bigger yard) is what lets you cash it at full price.
+
+Vision, not prototype — the prototype keeps the LIGHT money/shop stub (`prototype_scope.md`). Open
+tuning lives in `open_questions.md`.
+
 ## Awards
 
 Prestige milestones (e.g. **max rating 3× in a row**) grant **awards**. Awards **attract luxury /
@@ -50,17 +78,19 @@ gated by your cash — and **put them up for sale**. Both delivered and sold shi
 and **award nominations** that feed reputation; higher reputation brings **better clients and more tech
 to buy**. (New economy loop — pricing / who-buys / unsold-upkeep TBD; see `open_questions.md`.)
 
-## End goal — the generation ship (bridge to Galaxia)
+## End goal — the Leviathan generation ship (win condition · bridge to Galaxia)
 
-The career capstone is a once-in-a-generation commission: **design humanity's generation ship** —
-the very vessel **Galaxia begins with**, which kicks off Galaxia's **panspermia** mechanic. Rigger's
-Hullworks ends exactly where Galaxia starts. The generation ship is a **special one-off capstone
-commission**, not a general buildable class.
+The **win condition**: once **reputation** is high enough, the player is offered a once-in-a-
+generation commission — the **Leviathan**, humanity's generation ship. Completing it and launching it
+**into deep space to colonize a new galaxy** wins the game. That vessel is **the very ship Galaxia
+begins with**, kicking off Galaxia's **panspermia** mechanic — Rigger's Hullworks ends exactly where
+Galaxia starts. **Leviathan is the largest ship class** — the generation/colony-ship class — and this
+finale is its **capstone commission**. Vision/finale, not prototype (see `prototype_scope.md`).
 
 ## Classes
 
-**Drake / Goliath / Titan.** (Leviathan dropped — a Galaxia concept; the generation-ship finale is a
-special build, not a class.)
+**Drake / Goliath / Titan / Leviathan.** (Leviathan = the largest, the generation/colony-ship class;
+its capstone build is the win condition — see "End goal" above.)
 
 ## Weapons (cosmetic/structural modules — NOT combat)
 

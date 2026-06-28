@@ -51,10 +51,18 @@ static func add_walls(parent: Node3D, model: ShipDesign, config: DesignerConfig,
 			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 				if model.has_hull(d, cell + dir):
 					continue
+				# A swapped skin restyles this wall (colour + thickness); absent = default.
+				var wcol := col
+				var wt := t
+				var skin := HullSkins.by_id(model.wall_skin(d, cell, dir))
+				if not skin.is_empty():
+					wcol = skin.color
+					wcol.a = alpha
+					wt = t * float(skin.thickness_mul)
 				var cx: float = (cell.x + 0.5) * config.cell_size + dir.x * half
 				var cz: float = (cell.y + 0.5) * config.cell_size + dir.y * half
-				var size := Vector3(t, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, t)
-				_box(parent, Vector3(cx, y, cz), size, col, alpha < 1.0)
+				var size := Vector3(wt, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, wt)
+				_box(parent, Vector3(cx, y, cz), size, wcol, alpha < 1.0)
 
 
 static func add_roof(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int, alpha := 1.0, only_deck := -1) -> void:

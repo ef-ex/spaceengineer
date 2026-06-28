@@ -62,7 +62,8 @@ fits) → ship auto-flies through the gate (pass/fail) → paid + rated → smal
   covers the prototype payoff. Vision feature (pairs with hall of fame).
 - ❌ **Advanced art tools** — splines, painting, texture projection, complementary-color pickers.
   Use Godot's built-in ColorPicker + primitives.
-- ❌ **Goliath / Titan classes** — Drake only. (Leviathan is cut from the game entirely.)
+- ❌ **Goliath / Titan / Leviathan classes** — Drake only. (Leviathan — the largest, generation/
+  colony-ship class — is the vision-only finale; see below + `game_vision.md`.)
 - ❌ **Full progression** — reputation-gated clients, shipyard unlocks, pattern unlocks, awards, the
   generation-ship finale. All vision.
 - ❌ **Blueprints, O2/water networks (unless cheap), turntable/video, photo mode, showroom/gallery, stations.**

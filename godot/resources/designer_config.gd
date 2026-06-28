@@ -58,9 +58,11 @@ extends Resource
 @export var ghost_invalid_color: Color = Color(0.85, 0.23, 0.23, 0.30)
 
 @export_group("Decks")
-## Vertical world spacing between decks (floor-to-floor). Keep close to cell_size
-## so stacked decks read as floors, not as a tall gap.
-@export var deck_height: float = 1.2
+## Vertical world spacing between decks (floor-to-floor), in metres. NOT gridded — the
+## only grid is horizontal (cell_size); decks sit at deck*deck_height on a free Y axis,
+## so any value is safe. Tuned to a human-standable ~2.5 m (a 1 m ceiling is a coffin;
+## real stand-up vehicle cabins are 1.9–2.2 m). Live value lives in designer_config.tres.
+@export var deck_height: float = 2.5
 
 @export_group("Overlay & feedback")
 ## Flat colour hull/modules fade to when a network overlay is active, so the

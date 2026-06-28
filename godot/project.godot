@@ -37,6 +37,12 @@ enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg", "res://addons/godot
 
 theme/custom="res://resources/ui_theme.tres"
 
+[importer_defaults]
+
+scene={
+"nodes/root_scale": 100.0
+}
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
