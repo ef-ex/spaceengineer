@@ -15,9 +15,9 @@ var risers: Dictionary = {}
 # deck:int -> { String: true }   (an opening on the wall edge between two adjacent
 # cells, keyed canonically so two rooms sharing the edge see one door)
 var doors: Dictionary = {}
-# deck:int -> { wall_key:String -> skin_id:String }   (a swapped hull-wall skin on the
-# exposed edge of a hull cell; absent = the default auto-generated wall)
-var wall_skins: Dictionary = {}
+# deck:int -> { wall_key:String -> morph:float }   (an authored morphable wall on the
+# exposed edge of a hull cell; absent = the default auto-generated box wall)
+var wall_morphs: Dictionary = {}
 
 
 # --- Hull -------------------------------------------------------------------
@@ -175,16 +175,17 @@ static func wall_key(cell: Vector2i, dir: Vector2i) -> String:
 	return "%d,%d,%d,%d" % [cell.x, cell.y, dir.x, dir.y]
 
 
-func wall_skin(deck: int, cell: Vector2i, dir: Vector2i) -> String:
-	return wall_skins.get(deck, {}).get(wall_key(cell, dir), "")
+func wall_morph(deck: int, cell: Vector2i, dir: Vector2i) -> float:
+	# Morph weight 0..1 for the authored wall on this edge, or -1.0 if none (= box).
+	return wall_morphs.get(deck, {}).get(wall_key(cell, dir), -1.0)
 
 
-func set_wall_skin(deck: int, cell: Vector2i, dir: Vector2i, skin_id: String) -> void:
-	if skin_id == "":
-		if wall_skins.has(deck):
-			wall_skins[deck].erase(wall_key(cell, dir))
+func set_wall_morph(deck: int, cell: Vector2i, dir: Vector2i, morph: float) -> void:
+	if morph < 0.0:
+		if wall_morphs.has(deck):
+			wall_morphs[deck].erase(wall_key(cell, dir))
 	else:
-		wall_skins.get_or_add(deck, {})[wall_key(cell, dir)] = skin_id
+		wall_morphs.get_or_add(deck, {})[wall_key(cell, dir)] = morph
 
 
 # --- Aggregate queries ------------------------------------------------------
@@ -246,7 +247,7 @@ func to_dict() -> Dictionary:
 		"conduits": _deep_copy(conduits),
 		"risers": _deep_copy(risers),
 		"doors": _deep_copy(doors),
-		"wall_skins": _deep_copy(wall_skins),
+		"wall_morphs": _deep_copy(wall_morphs),
 	}
 
 
@@ -256,7 +257,7 @@ func from_dict(data: Dictionary) -> void:
 	conduits = _deep_copy(data.get("conduits", {}))
 	risers = _deep_copy(data.get("risers", {}))
 	doors = _deep_copy(data.get("doors", {}))
-	wall_skins = _deep_copy(data.get("wall_skins", {}))
+	wall_morphs = _deep_copy(data.get("wall_morphs", {}))
 
 
 # --- Internals --------------------------------------------------------------
@@ -280,9 +281,9 @@ func _clear_cell_dependents(deck: int, cell: Vector2i) -> void:
 	if doors.has(deck):
 		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 			doors[deck].erase(_edge_key(cell, cell + dir))
-	if wall_skins.has(deck):
+	if wall_morphs.has(deck):
 		for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
-			wall_skins[deck].erase(wall_key(cell, dir))
+			wall_morphs[deck].erase(wall_key(cell, dir))
 
 
 func _deep_copy(value: Variant) -> Variant:

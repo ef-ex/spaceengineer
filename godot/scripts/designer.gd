@@ -9,7 +9,7 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
-enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL }
+enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL, DELETE }
 
 @export var config: DesignerConfig
 @export var catalog: ModuleCatalog
@@ -21,7 +21,6 @@ var _overlay: String = ""          # "", "power", "heat" — what the world is d
 var _route_net: String = "power"   # which network the Route tool places (picked in the Route palette)
 var _active_module: String = ""    # selected equipment id for the Equipment tool
 var _active_room: String = ""      # selected room type for the Rooms tool
-var _active_skin: String = ""      # selected hull-wall skin for the Walls tool ("" = default/remove)
 var _place_rot: int = 0            # rotation (quarter-turns) for the next placement
 var _selected: Dictionary = {}     # the module entry picked in Select mode
 var _wall_sel: Dictionary = {}     # "deck|wall_key" -> {deck,cell,dir}; multi-selected walls
@@ -70,8 +69,7 @@ var _route_buttons := {}
 var _route_picker: Control
 var _room_buttons := {}
 var _room_picker: Control
-var _wall_buttons := {}
-var _wall_picker: Control
+var _radial: Control               # Tiny-Glade-style radial context menu (Select mode)
 var _stat_box: VBoxContainer
 var _diag_bar: PanelContainer
 var _diag_label: Label
@@ -353,7 +351,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_hover = _resolve_cell(event.position)
 			if _tool == Tool.DOOR:
 				_hover_edge = _edge_at(event.position)
-			elif _tool == Tool.WALL:
+			elif _tool == Tool.WALL or _tool == Tool.SELECT:
 				_hover_wall = _wall_at(event.position)
 			_update_preview()
 	elif event is InputEventKey and event.pressed and not event.echo:
@@ -399,20 +397,27 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 		if _tool == Tool.WALL:
 			_wall_click(event.position, add, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
 			return
+		if _tool == Tool.SELECT:
+			_close_radial()   # any new click collapses an open Edit menu
+			if add:
+				if _wall_at(event.position) != null:
+					_wall_click(event.position, true, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
+				else:
+					_dismiss_selection()
+					if cell != null:
+						_select_at(cell)
+			else:
+				_dismiss_selection()   # right-click cancels — no delete
+			return
+		if not add:
+			_set_tool(Tool.SELECT)     # right-click exits any build tool — never deletes
+			return
 		if cell == null:
 			return
 		match _tool:
-			Tool.SELECT:
-				if add:
-					_select_at(cell)
-				else:
-					_erase_module_at(cell)
 			Tool.MODULE:
 				_push_undo()
-				if add:
-					_place_module(cell)
-				else:
-					_remove_module(cell)
+				_place_module(cell)
 				_post_change()
 			Tool.DOOR:
 				_toggle_door(event.position, add)
@@ -544,6 +549,13 @@ func _apply_cell(cell: Vector2i, add: bool) -> void:
 			if add and not _model.has_hull(_active_deck, cell):
 				return
 			_model.set_riser(_active_deck, cell, add)
+		Tool.DELETE:
+			# Demolish: remove equipment/room here if any, else erase the hull cell
+			# (which cascades away conduits/risers/doors/skins on it).
+			if not _model.module_at(_active_deck, cell).is_empty():
+				_model.remove_module_at(_active_deck, cell)
+			else:
+				_model.set_hull(_active_deck, cell, false)
 
 
 func _apply_room(a: Vector2i, b: Vector2i, add: bool) -> void:
@@ -796,7 +808,7 @@ func _render() -> void:
 		if _overlay == "":
 			ShipRenderer.add_walls(_world, _model, config, _deck_count, config.edit_shell_alpha, _active_deck)
 	_render_risers()
-	if _tool == Tool.WALL:
+	if _tool == Tool.WALL or _tool == Tool.SELECT:
 		_render_wall_selection()
 	_update_preview()
 
@@ -921,6 +933,8 @@ func _update_preview() -> void:
 				var scol := config.ghost_color if sok else config.ghost_invalid_color
 				for c in scells:
 					_add_preview_cell(c, y, scol)
+		elif _hover_wall != null:
+			_add_wall_marker(_preview, _hover_wall.cell, _hover_wall.dir, config.ghost_color)
 		return
 
 	if _tool == Tool.DOOR:
@@ -1026,6 +1040,14 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root)
+
+	# Radial context menu (Tiny-Glade style): pops at a selected element with its
+	# actions; modal while open. Click empty space or right-click to dismiss.
+	_radial = Control.new()
+	_radial.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_radial.mouse_filter = Control.MOUSE_FILTER_IGNORE   # non-modal: only its buttons catch clicks
+	_radial.visible = false
+	layer.add_child(_radial)
 
 	# --- Top-left: system menu --------------------------------------------------
 	var menu_btn := _button("☰  Menu")
@@ -1145,23 +1167,17 @@ func _build_ui() -> void:
 	_route_buttons["power"] = _add_route("⚡ Power cable", "power")
 	_route_buttons["heat"] = _add_route("♨ Heat pipe", "heat")
 
-	# Walls palette (visible for the Walls tool): select walls, then click a skin to
-	# apply it. "Default" clears the skin back to the plain auto-wall.
-	_wall_picker = HBoxContainer.new()
-	_wall_picker.add_theme_constant_override("separation", 6)
-	build.add_child(_wall_picker)
-	_wall_buttons[""] = _add_skin("Default", "")
-	for s in HullSkins.SKINS:
-		_wall_buttons[s.id] = _add_skin(s.name, s.id)
-
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 6)
 	build.add_child(tools)
 	_tool_buttons[Tool.SELECT] = _add_tool(tools, "Select", Tool.SELECT)
+	_tool_buttons[Tool.DELETE] = _add_tool(tools, "Delete", Tool.DELETE)
+	var edit_btn := _button("Edit")
+	edit_btn.pressed.connect(_open_edit_radial)
+	tools.add_child(edit_btn)
 	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
 	_tool_buttons[Tool.ROOM] = _add_tool(tools, "Rooms", Tool.ROOM)
 	_tool_buttons[Tool.DOOR] = _add_tool(tools, "Doors", Tool.DOOR)
-	_tool_buttons[Tool.WALL] = _add_tool(tools, "Walls", Tool.WALL)
 	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Equipment", Tool.MODULE)
 	_tool_buttons[Tool.ROUTE] = _add_tool(tools, "Route", Tool.ROUTE)
 	_tool_buttons[Tool.RISER] = _add_tool(tools, "Riser", Tool.RISER)
@@ -1270,15 +1286,14 @@ func _open_menu() -> void:
 
 func _set_tool(tool: int) -> void:
 	_tool = tool
+	_close_radial()
+	_wall_anchor = null
+	if not _wall_sel.is_empty():
+		_wall_sel.clear()
 	if tool != Tool.SELECT and not _selected.is_empty():
 		_selected = {}
 		_moving = false
-		_render()
-	if tool != Tool.WALL:
-		_wall_anchor = null
-		if not _wall_sel.is_empty():
-			_wall_sel.clear()
-			_render()
+	_render()
 	if tool == Tool.ROUTE:
 		_set_overlay(_route_net)   # show the network you're about to route
 	_refresh_ui()
@@ -1299,35 +1314,6 @@ func _set_room(id: String) -> void:
 	else:
 		_refresh_ui()
 		_update_preview()
-
-
-# --- Walls tool (select hull-wall edges, swap their skin) --------------------
-
-func _add_skin(text: String, skin_id: String) -> Button:
-	var b := _button(text)
-	b.pressed.connect(_set_skin.bind(skin_id))
-	_wall_picker.add_child(b)
-	return b
-
-
-func _set_skin(skin_id: String) -> void:
-	# Select walls first, then click a skin to apply it to the whole selection.
-	_active_skin = skin_id
-	if _tool != Tool.WALL:
-		_set_tool(Tool.WALL)
-	if not _wall_sel.is_empty():
-		_apply_skin_to_selection()
-	_refresh_ui()
-
-
-func _apply_skin_to_selection() -> void:
-	if _wall_sel.is_empty():
-		return
-	_push_undo()
-	for key in _wall_sel:
-		var w: Dictionary = _wall_sel[key]
-		_model.set_wall_skin(w.deck, w.cell, w.dir, _active_skin)
-	_post_change()
 
 
 func _wall_at(screen_pos: Vector2) -> Variant:
@@ -1428,6 +1414,130 @@ func _wall_run(a: Dictionary, b: Dictionary) -> Dictionary:
 	return out
 
 
+# --- Select mode: hover-to-select + radial context menu (Tiny-Glade style) ---
+
+func _open_edit_radial() -> void:
+	# Level 1 — the tools available for the selection. Only the wall/hull tool exists
+	# yet (one icon); colour / texture / paint join this ring later. Click it to drop
+	# into that tool's own options (level 2).
+	if _wall_sel.is_empty():
+		return
+	_show_radial(_selection_screen_center(), [{"text": "⬢ Walls", "cb": func(): _open_wall_pieces()}])
+
+
+func _open_wall_pieces() -> void:
+	# Level 2 — the wall pieces this tool offers. Just "Wall 1" (the morphable mesh) yet;
+	# more pieces (corner, etc.) become more icons on this ring.
+	_show_radial(_selection_screen_center(), [{"text": "Wall 1", "cb": func(): _pick_wall_piece()}])
+
+
+func _pick_wall_piece() -> void:
+	# Assign Wall 1's mesh to the selection (morph 0 if unset), then open its control.
+	_push_undo()
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		if _model.wall_morph(w.deck, w.cell, w.dir) < 0.0:
+			_model.set_wall_morph(w.deck, w.cell, w.dir, 0.0)
+	_render()
+	_open_morph_slider()
+
+
+func _open_morph_slider() -> void:
+	# Level 3 — Wall 1's control: a continuous flat<->thick morph slider that scrubs the
+	# whole selection live. Undo was pushed when the piece was assigned.
+	_close_radial()
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = _selection_morph()
+	slider.custom_minimum_size = Vector2(190, 26)
+	slider.size = Vector2(190, 26)
+	slider.position = _selection_screen_center() - slider.size * 0.5
+	slider.value_changed.connect(_apply_morph_to_sel)
+	_radial.add_child(slider)
+	_radial.visible = true
+
+
+func _selection_morph() -> float:
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		return maxf(_model.wall_morph(w.deck, w.cell, w.dir), 0.0)
+	return 0.0
+
+
+func _selection_screen_center() -> Vector2:
+	var sum := Vector3.ZERO
+	var n := 0
+	for key in _wall_sel:
+		sum += _wall_center_world(_wall_sel[key])
+		n += 1
+	if n == 0:
+		return get_viewport().get_visible_rect().size * 0.5
+	return _cam.unproject_position(sum / float(n))
+
+
+func _apply_morph_to_sel(value: float) -> void:
+	# Live as the slider drags: set every selected wall's morph, then re-render. Undo
+	# was pushed when the slider opened, so the whole scrub is one undo step.
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		_model.set_wall_morph(w.deck, w.cell, w.dir, value)
+	_render()
+
+
+func _dismiss_selection() -> void:
+	_close_radial()
+	_wall_sel.clear()
+	_wall_anchor = null
+	if not _selected.is_empty():
+		_selected = {}
+		_moving = false
+	_render()
+	_refresh_ui()
+
+
+func _wall_center_world(w: Dictionary) -> Vector3:
+	var cs := config.cell_size
+	var slab := cs * 0.12
+	var cell: Vector2i = w.cell
+	var dir: Vector2i = w.dir
+	var cx: float = (cell.x + 0.5) * cs + dir.x * cs * 0.5
+	var cz: float = (cell.y + 0.5) * cs + dir.y * cs * 0.5
+	var cy: float = _floor_y(w.deck) + slab + (config.deck_height - slab) * 0.5
+	return Vector3(cx, cy, cz)
+
+
+func _show_radial(center: Vector2, items: Array) -> void:
+	for c in _radial.get_children():
+		c.queue_free()
+	var n := items.size()
+	var radius: float = 96.0 if n > 1 else 0.0
+	for i in n:
+		var it: Dictionary = items[i]
+		var b := Button.new()
+		b.text = it.text
+		b.focus_mode = Control.FOCUS_NONE
+		b.size = Vector2(80, 32)
+		var ang: float = -PI * 0.5 + TAU * float(i) / float(n)
+		var p := center + Vector2(cos(ang), sin(ang)) * radius
+		b.position = p - b.size * 0.5
+		var cb: Callable = it.cb
+		b.pressed.connect(cb)
+		_radial.add_child(b)
+	_radial.visible = true
+
+
+func _close_radial() -> void:
+	if _radial == null:
+		return
+	for c in _radial.get_children():
+		c.queue_free()
+	_radial.visible = false
+
+
+
+
 func _render_wall_selection() -> void:
 	for key in _wall_sel:
 		var w: Dictionary = _wall_sel[key]
@@ -1521,9 +1631,6 @@ func _refresh_ui() -> void:
 	_room_picker.visible = _tool == Tool.ROOM
 	for id in _room_buttons:
 		_room_buttons[id].modulate = Color.WHITE if id == _active_room else Color(1, 1, 1, 0.5)
-	_wall_picker.visible = _tool == Tool.WALL
-	for id in _wall_buttons:
-		_wall_buttons[id].modulate = Color.WHITE if id == _active_skin else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
 	_rebuild_diagnostics()
 

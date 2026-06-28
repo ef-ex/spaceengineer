@@ -51,18 +51,16 @@ static func add_walls(parent: Node3D, model: ShipDesign, config: DesignerConfig,
 			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 				if model.has_hull(d, cell + dir):
 					continue
-				# A swapped skin restyles this wall (colour + thickness); absent = default.
-				var wcol := col
-				var wt := t
-				var skin := HullSkins.by_id(model.wall_skin(d, cell, dir))
-				if not skin.is_empty():
-					wcol = skin.color
-					wcol.a = alpha
-					wt = t * float(skin.thickness_mul)
+				# A wall with a morph set is the authored morphable mesh (flat<->thick);
+				# a plain wall stays the cheap box.
+				var mph := model.wall_morph(d, cell, dir)
+				if mph >= 0.0:
+					_morph_wall(parent, d, cell, dir, mph, config.wall_color, alpha, config)
+					continue
 				var cx: float = (cell.x + 0.5) * config.cell_size + dir.x * half
 				var cz: float = (cell.y + 0.5) * config.cell_size + dir.y * half
-				var size := Vector3(wt, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, wt)
-				_box(parent, Vector3(cx, y, cz), size, wcol, alpha < 1.0)
+				var size := Vector3(t, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, t)
+				_box(parent, Vector3(cx, y, cz), size, col, alpha < 1.0)
 
 
 static func add_roof(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int, alpha := 1.0, only_deck := -1) -> void:
@@ -103,6 +101,43 @@ static func center(model: ShipDesign, config: DesignerConfig, deck_count: int) -
 		(minx + maxx + 1) * 0.5 * config.cell_size,
 		max(1, cs.decks) * config.deck_height * 0.5,
 		(minz + maxz + 1) * 0.5 * config.cell_size)
+
+
+static func _morph_wall(parent: Node3D, deck: int, cell: Vector2i, dir: Vector2i, morph: float, color: Color, alpha: float, config: DesignerConfig) -> void:
+	var mesh := WallMesh.morph_mesh()
+	if mesh == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.set_blend_shape_value(0, morph)   # 0 = flat, 1 = thick
+	mi.transform = _wall_xform(deck, cell, dir, config)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.metallic = 0.25
+	m.roughness = 0.55
+	if alpha < 1.0:
+		m.albedo_color.a = alpha
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mi.material_override = m
+	parent.add_child(mi)
+
+
+static func _wall_xform(deck: int, cell: Vector2i, dir: Vector2i, config: DesignerConfig) -> Transform3D:
+	# Place the authored wall mesh (faces +X, 2.5 m tall, 1 cell long, base at y=0) on
+	# this edge: rotate so it faces `dir`, slide its centre onto the edge, base on the floor.
+	var cs := config.cell_size
+	var theta := 0.0
+	if dir == Vector2i(0, 1):
+		theta = -PI * 0.5
+	elif dir == Vector2i(-1, 0):
+		theta = PI
+	elif dir == Vector2i(0, -1):
+		theta = PI * 0.5
+	var basis := Basis(Vector3.UP, theta)
+	var world_center := Vector3((cell.x + 0.5) * cs + dir.x * 0.5 * cs, 0.0, (cell.y + 0.5) * cs + dir.y * 0.5 * cs)
+	var origin := world_center - basis * Vector3(0.01, 0.0, -0.5)   # mesh's horizontal centre
+	origin.y = deck * config.deck_height
+	return Transform3D(basis, origin)
 
 
 static func _box(parent: Node3D, center_pos: Vector3, size: Vector3, col: Color, transparent := false) -> void:
