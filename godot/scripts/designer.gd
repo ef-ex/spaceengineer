@@ -10,6 +10,7 @@ const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 
 enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL, DELETE }
+enum Phase { SHAPE, STRUCTURE, SYSTEMS, DECORATE }
 
 @export var config: DesignerConfig
 @export var catalog: ModuleCatalog
@@ -17,6 +18,7 @@ enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL, DELETE }
 
 var _model: ShipDesign
 var _tool: int = Tool.SELECT
+var _phase: int = Phase.SHAPE      # active build phase (rail); scopes which tools are shown
 var _overlay: String = ""          # "", "power", "heat" — what the world is dimmed/coloured to show
 var _route_net: String = "power"   # which network the Route tool places (picked in the Route palette)
 var _active_module: String = ""    # selected equipment id for the Equipment tool
@@ -71,6 +73,10 @@ var _route_picker: Control
 var _room_buttons := {}
 var _room_picker: Control
 var _radial: Control               # Tiny-Glade-style radial context menu (Select mode)
+var _phase_buttons := {}           # Phase -> Button (the top phase rail)
+var _phase_rows := {}              # Phase -> HBoxContainer (that phase's tool row)
+var _wall_variant_picker: HBoxContainer   # Structure phase: pick the wall mesh
+var _mod_legend: Label             # contextual modifier hint for the active tool
 var _stat_box: VBoxContainer
 var _diag_bar: PanelContainer
 var _diag_label: Label
@@ -1000,6 +1006,19 @@ func _build_ui() -> void:
 	menu_btn.pressed.connect(_open_menu)
 	root.add_child(menu_btn)
 
+	# --- Top-centre: phase rail (Shape / Structure / Systems / Decorate) --------
+	# The top-level switch; also scopes which tools show below (the selection filter).
+	var rail := HBoxContainer.new()
+	rail.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	rail.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	rail.offset_top = 10
+	rail.add_theme_constant_override("separation", 6)
+	root.add_child(rail)
+	_phase_buttons[Phase.SHAPE] = _add_phase(rail, "Shape", Phase.SHAPE)
+	_phase_buttons[Phase.STRUCTURE] = _add_phase(rail, "Structure", Phase.STRUCTURE)
+	_phase_buttons[Phase.SYSTEMS] = _add_phase(rail, "Systems", Phase.SYSTEMS)
+	_phase_buttons[Phase.DECORATE] = _add_phase(rail, "Decorate", Phase.DECORATE)
+
 	# --- Top-right: information (status / overlays / diagnostics / deliver) ------
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -1110,17 +1129,55 @@ func _build_ui() -> void:
 	_route_buttons["power"] = _add_route("⚡ Power cable", "power")
 	_route_buttons["heat"] = _add_route("♨ Heat pipe", "heat")
 
-	var tools := HBoxContainer.new()
-	tools.add_theme_constant_override("separation", 6)
-	build.add_child(tools)
-	_tool_buttons[Tool.SELECT] = _add_tool(tools, "Select", Tool.SELECT)
-	_tool_buttons[Tool.DELETE] = _add_tool(tools, "Delete", Tool.DELETE)
-	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
-	_tool_buttons[Tool.ROOM] = _add_tool(tools, "Rooms", Tool.ROOM)
-	_tool_buttons[Tool.DOOR] = _add_tool(tools, "Doors", Tool.DOOR)
-	_tool_buttons[Tool.MODULE] = _add_tool(tools, "Equipment", Tool.MODULE)
-	_tool_buttons[Tool.ROUTE] = _add_tool(tools, "Route", Tool.ROUTE)
-	_tool_buttons[Tool.RISER] = _add_tool(tools, "Riser", Tool.RISER)
+	# Wall variant palette (Structure phase): pick the wall mesh. Only "Wall 1"
+	# exists yet; the rest light up as meshes are authored in Houdini.
+	_wall_variant_picker = HBoxContainer.new()
+	_wall_variant_picker.add_theme_constant_override("separation", 6)
+	build.add_child(_wall_variant_picker)
+	var wl := Label.new()
+	wl.text = "Wall:"
+	wl.modulate = Color(1, 1, 1, 0.6)
+	_wall_variant_picker.add_child(wl)
+	var w1 := _button("Wall 1")
+	w1.tooltip_text = "Select a wall, then drag its handle to morph flat<->thick"
+	_wall_variant_picker.add_child(w1)
+	_wall_variant_picker.add_child(_placeholder("Wall 2"))
+	_wall_variant_picker.add_child(_placeholder("Corner"))
+	_wall_variant_picker.add_child(_placeholder("Custom…"))
+
+	# Core verbs — present in every phase (the universal cursor).
+	var core := HBoxContainer.new()
+	core.add_theme_constant_override("separation", 6)
+	build.add_child(core)
+	_tool_buttons[Tool.SELECT] = _add_tool(core, "Select", Tool.SELECT)
+	_tool_buttons[Tool.DELETE] = _add_tool(core, "Delete", Tool.DELETE)
+
+	# Per-phase tool rows — _refresh_ui shows only the active phase's row.
+	var shape_row := HBoxContainer.new()
+	shape_row.add_theme_constant_override("separation", 6)
+	build.add_child(shape_row)
+	_tool_buttons[Tool.HULL] = _add_tool(shape_row, "Hull", Tool.HULL)
+	_phase_rows[Phase.SHAPE] = shape_row
+
+	var sys_row := HBoxContainer.new()
+	sys_row.add_theme_constant_override("separation", 6)
+	build.add_child(sys_row)
+	_tool_buttons[Tool.ROOM] = _add_tool(sys_row, "Rooms", Tool.ROOM)
+	_tool_buttons[Tool.DOOR] = _add_tool(sys_row, "Doors", Tool.DOOR)
+	_tool_buttons[Tool.MODULE] = _add_tool(sys_row, "Equipment", Tool.MODULE)
+	_tool_buttons[Tool.ROUTE] = _add_tool(sys_row, "Route", Tool.ROUTE)
+	_tool_buttons[Tool.RISER] = _add_tool(sys_row, "Riser", Tool.RISER)
+	_phase_rows[Phase.SYSTEMS] = sys_row
+
+	var dec_row := HBoxContainer.new()
+	dec_row.add_theme_constant_override("separation", 6)
+	build.add_child(dec_row)
+	dec_row.add_child(_placeholder("Props"))
+	dec_row.add_child(_placeholder("Texture"))
+	dec_row.add_child(_placeholder("Paint"))
+	dec_row.add_child(_placeholder("Modeling"))
+	dec_row.add_child(_placeholder("Detail splines"))
+	_phase_rows[Phase.DECORATE] = dec_row
 
 	var opts := HBoxContainer.new()
 	opts.add_theme_constant_override("separation", 6)
@@ -1170,6 +1227,62 @@ func _build_ui() -> void:
 		gate_check.toggled.connect(_set_gate)
 		deckrow.add_child(gate_check)
 
+	_mod_legend = Label.new()
+	_mod_legend.modulate = Color(1, 1, 1, 0.5)
+	_mod_legend.add_theme_font_size_override("font_size", 12)
+	build.add_child(_mod_legend)
+
+
+func _add_phase(bar: HBoxContainer, text: String, phase: int) -> Button:
+	var b := _button(text)
+	b.pressed.connect(_set_phase.bind(phase))
+	bar.add_child(b)
+	return b
+
+
+func _set_phase(phase: int) -> void:
+	_phase = phase
+	_set_tool(Tool.SELECT)   # land on the universal cursor in the new phase; refreshes UI
+
+
+func _phase_of_tool(t: int) -> int:
+	match t:
+		Tool.HULL:
+			return Phase.SHAPE
+		Tool.ROOM, Tool.DOOR, Tool.MODULE, Tool.ROUTE, Tool.RISER:
+			return Phase.SYSTEMS
+		_:
+			return _phase   # SELECT / DELETE are universal — stay in the current phase
+
+
+func _tool_hint(t: int) -> String:
+	match t:
+		Tool.SELECT:
+			return "Click select · Shift range · Ctrl toggle · drag a wall's handle to morph"
+		Tool.DELETE:
+			return "Click to remove"
+		Tool.HULL:
+			return "Drag to add · right-drag to remove"
+		Tool.ROOM:
+			return "Drag a rectangle to size the room"
+		Tool.DOOR:
+			return "Click a wall edge"
+		Tool.MODULE:
+			return "Click to place · R rotate · C clone"
+		Tool.ROUTE:
+			return "Drag to route the conduit"
+		Tool.RISER:
+			return "Click to place a riser"
+		_:
+			return ""
+
+
+func _placeholder(text: String) -> Button:
+	var b := _button(text)
+	b.disabled = true
+	b.tooltip_text = "Planned"
+	return b
+
 
 func _add_tool(bar: HBoxContainer, text: String, tool: int) -> Button:
 	var b := _button(text)
@@ -1212,6 +1325,7 @@ func _open_menu() -> void:
 
 func _set_tool(tool: int) -> void:
 	_tool = tool
+	_phase = _phase_of_tool(tool)   # keyboard tool shortcuts also switch the phase rail
 	_close_radial()
 	_wall_anchor = null
 	if not _wall_sel.is_empty():
@@ -1571,6 +1685,14 @@ func _toggle_full(on: bool) -> void:
 func _refresh_ui() -> void:
 	for t in _tool_buttons:
 		_tool_buttons[t].modulate = Color.WHITE if t == _tool else Color(1, 1, 1, 0.5)
+	for p in _phase_buttons:
+		_phase_buttons[p].modulate = Color.WHITE if p == _phase else Color(1, 1, 1, 0.5)
+	for p in _phase_rows:
+		_phase_rows[p].visible = p == _phase
+	if _wall_variant_picker:
+		_wall_variant_picker.visible = _phase == Phase.STRUCTURE
+	if _mod_legend:
+		_mod_legend.text = _tool_hint(_tool)
 	for n in _overlay_buttons:
 		_overlay_buttons[n].modulate = Color.WHITE if n == _overlay else Color(1, 1, 1, 0.5)
 	for id in _module_buttons:
