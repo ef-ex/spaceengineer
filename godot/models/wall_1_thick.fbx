@@ -8,11 +8,11 @@ FBXHeaderExtension:  {
 		Version: 1000
 		Year: 2026
 		Month: 6
-		Day: 28
-		Hour: 20
-		Minute: 45
-		Second: 53
-		Millisecond: 402
+		Day: 29
+		Hour: 17
+		Minute: 49
+		Second: 29
+		Millisecond: 469
 	}
 	Creator: "FBX SDK/FBX Plugins version 2020.0.1"
 	OtherFlags:  {
@@ -37,13 +37,13 @@ FBXHeaderExtension:  {
 			P: "Original|ApplicationVendor", "KString", "", "", "SideFX Software"
 			P: "Original|ApplicationName", "KString", "", "", "Houdini"
 			P: "Original|ApplicationVersion", "KString", "", "", "21.0.631"
-			P: "Original|DateTime_GMT", "DateTime", "", "", "28/06/2026 18:45:53.401"
+			P: "Original|DateTime_GMT", "DateTime", "", "", "29/06/2026 15:49:29.464"
 			P: "Original|FileName", "KString", "", "", "D:\godotGames\spaceengineer\source\wall_1_thick.fbx"
 			P: "LastSaved", "Compound", "", ""
 			P: "LastSaved|ApplicationVendor", "KString", "", "", "SideFX Software"
 			P: "LastSaved|ApplicationName", "KString", "", "", "Houdini"
 			P: "LastSaved|ApplicationVersion", "KString", "", "", "21.0.631"
-			P: "LastSaved|DateTime_GMT", "DateTime", "", "", "28/06/2026 18:45:53.401"
+			P: "LastSaved|DateTime_GMT", "DateTime", "", "", "29/06/2026 15:49:29.464"
 			P: "Original|ApplicationActiveProject", "KString", "", "", "C:\Users\hannes"
 			P: "Original|ApplicationNativeFile", "KString", "", "", "D:\godotGames\spaceengineer\source\models.hip"
 		}
@@ -80,7 +80,7 @@ GlobalSettings:  {
 
 Documents:  {
 	Count: 1
-	Document: 329788087808, "", "Scene" {
+	Document: 166364917504, "", "Scene" {
 		Properties70:  {
 			P: "SourceObject", "object", "", ""
 			P: "ActiveAnimStackName", "KString", "", "", ""
@@ -201,9 +201,9 @@ Definitions:  {
 ;------------------------------------------------------------------
 
 Objects:  {
-	Geometry: 166020007936, "Geometry::normal1", "Mesh" {
+	Geometry: 166362381888, "Geometry::normal1", "Mesh" {
 		Vertices: *24 {
-			a: 0,2.5,0,0.0200000014156103,2.25,0,0.0199979860335588,0.25,0,0,0,0,0,2.5,-1,0.0200000014156103,2.25,-1,0.0199979860335588,0.25,-1,0,0,-1
+			a: 0,2.5,0,0.200000002980232,2.25,0,0.199979856610298,0.25,0,0,0,0,0,2.5,-1,0.200000002980232,2.25,-1,0.199979856610298,0.25,-1,0,0,-1
 		} 
 		PolygonVertexIndex: *12 {
 			a: 1,5,4,-1,2,6,5,-2,3,7,6,-3
@@ -215,7 +215,7 @@ Objects:  {
 			MappingInformationType: "ByPolygonVertex"
 			ReferenceInformationType: "Direct"
 			Normals: *36 {
-				a: 0.996815264225006,0.0797452256083488,-0,0.996815264225006,0.0797452256083488,-0,0.996815264225006,0.0797452256083488,0,0.996815264225006,0.0797452256083488,0,1,-1.00769102573395e-06,-0,1,-1.00769102573395e-06,-0,1,-1.00769102573395e-06,-0,1,-1.00769102573395e-06,-0,0.996815979480743,-0.0797372460365295,-0,0.996815979480743,-0.0797372460365295,-0,0.996815979480743,-0.0797372460365295,-0,0.996815979480743,-0.0797372460365295,-0
+				a: 0.780868828296661,0.624695062637329,-0,0.780868828296661,0.624695062637329,-0,0.780868828296661,0.624695062637329,0,0.780868828296661,0.624695062637329,0,1,-1.0073184967041e-05,-0,1,-1.0073184967041e-05,-0,1,-1.0073184967041e-05,-0,1,-1.0073184967041e-05,-0,0.780899524688721,-0.624656736850739,-0,0.780899524688721,-0.624656736850739,-0,0.780899524688721,-0.624656736850739,-0,0.780899524688721,-0.624656736850739,-0
 			} 
 			NormalsW: *12 {
 				a: 1,1,1,1,1,1,1,1,1,1,1,1
@@ -229,7 +229,7 @@ Objects:  {
 			}
 		}
 	}
-	Model: 165177136640, "Model::normal1", "Mesh" {
+	Model: 166362513664, "Model::normal1", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "ScalingMax", "Vector3D", "Vector", "",0,0,0
@@ -247,10 +247,10 @@ Objects:  {
 Connections:  {
 	
 	;Model::normal1, Model::RootNode
-	C: "OO",165177136640,0
+	C: "OO",166362513664,0
 	
 	;Geometry::normal1, Model::normal1
-	C: "OO",166020007936,165177136640
+	C: "OO",166362381888,166362513664
 }
 ;Takes section
 ;----------------------------------------------------

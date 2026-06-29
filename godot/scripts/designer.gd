@@ -1546,14 +1546,22 @@ func _render_wall_selection() -> void:
 
 
 func _add_wall_marker(parent: Node, cell: Vector2i, dir: Vector2i, col: Color) -> void:
-	var half := config.cell_size * 0.5
-	var slab := config.cell_size * 0.12
-	var wh := config.deck_height - slab
-	var y := _floor_y(_active_deck) + slab + wh * 0.5
-	var cx := (cell.x + 0.5) * config.cell_size + dir.x * half
-	var cz := (cell.y + 0.5) * config.cell_size + dir.y * half
-	var size := Vector3(0.16, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, 0.16)
-	_add_box(parent, Vector3(cx, y, cz), size * 1.02, col, true, true)
+	# Highlight a wall by overdrawing its actual mesh (at its current morph) in `col`,
+	# on top (no depth test) — consistent with the rendered wall, no placeholder box.
+	var mesh := WallMesh.morph_mesh()
+	if mesh == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.set_blend_shape_value(0, maxf(_model.wall_morph(_active_deck, cell, dir), 0.0))
+	mi.transform = ShipRenderer._wall_xform(_active_deck, cell, dir, config)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = col
+	m.no_depth_test = true
+	mi.material_override = m
+	parent.add_child(mi)
 
 
 func _set_route_net(net: String) -> void:

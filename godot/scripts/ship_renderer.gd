@@ -31,36 +31,19 @@ static func build(model: ShipDesign, config: DesignerConfig, catalog: ModuleCata
 
 
 static func add_walls(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int, alpha := 1.0, only_deck := -1) -> void:
-	# A wall on every hull edge that faces open space, rising slab-to-ceiling, so
-	# the floor plan reads as an enclosed volume. Full-ship + delivery views draw
-	# every deck opaque; the per-deck editor draws just the active deck at a low
+	# Every hull edge that faces open space gets the authored morphable wall mesh
+	# (flat<->thick), at morph 0 by default — no plain boxes. Full-ship + delivery views
+	# draw every deck opaque; the per-deck editor draws just the active deck at a low
 	# alpha (only_deck) so the room reads as enclosed without hiding placement.
-	var slab := config.cell_size * 0.12
-	var wh := config.deck_height - slab
-	if wh <= 0.0:
-		return
-	var t := config.wall_thickness
-	var half := config.cell_size * 0.5
-	var col := config.wall_color
-	col.a = alpha
 	for d in range(deck_count):
 		if only_deck >= 0 and d != only_deck:
 			continue
-		var y := d * config.deck_height + slab + wh * 0.5
 		for cell in model.hull_cells(d):
 			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 				if model.has_hull(d, cell + dir):
 					continue
-				# A wall with a morph set is the authored morphable mesh (flat<->thick);
-				# a plain wall stays the cheap box.
-				var mph := model.wall_morph(d, cell, dir)
-				if mph >= 0.0:
-					_morph_wall(parent, d, cell, dir, mph, config.wall_color, alpha, config)
-					continue
-				var cx: float = (cell.x + 0.5) * config.cell_size + dir.x * half
-				var cz: float = (cell.y + 0.5) * config.cell_size + dir.y * half
-				var size := Vector3(t, wh, config.cell_size) if dir.x != 0 else Vector3(config.cell_size, wh, t)
-				_box(parent, Vector3(cx, y, cz), size, col, alpha < 1.0)
+				var mph := model.wall_morph(d, cell, dir)   # -1 (unset) renders at 0 (flat)
+				_morph_wall(parent, d, cell, dir, maxf(mph, 0.0), config.wall_color, alpha, config)
 
 
 static func add_roof(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int, alpha := 1.0, only_deck := -1) -> void:
