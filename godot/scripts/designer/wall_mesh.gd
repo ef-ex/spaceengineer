@@ -23,12 +23,15 @@ static func morph_mesh() -> ArrayMesh:
 	var tarr: Array = thick.surface_get_arrays(0)
 	var bs: Array = []
 	bs.resize(Mesh.ARRAY_MAX)
-	# RELATIVE blend shapes are applied as base + weight*array, so the array must be the
-	# DELTA (thick - flat). Storing absolute thick would scale the whole mesh up as the
-	# weight rises (the "grows out of bounds" bug).
-	bs[Mesh.ARRAY_VERTEX] = _delta(base[Mesh.ARRAY_VERTEX], tarr[Mesh.ARRAY_VERTEX])
-	if base[Mesh.ARRAY_NORMAL] != null and tarr[Mesh.ARRAY_NORMAL] != null:
-		bs[Mesh.ARRAY_NORMAL] = _delta(base[Mesh.ARRAY_NORMAL], tarr[Mesh.ARRAY_NORMAL])
+	# RELATIVE blend shapes apply as base + weight*delta, so store (thick - flat). AND
+	# the blend shape's format MUST match the base for VERTEX / NORMAL / TANGENT — include
+	# a delta for each the base has, or add_surface_from_arrays fails and the morph never
+	# attaches (silent: the mesh renders flat and the slider does nothing).
+	bs[Mesh.ARRAY_VERTEX] = _delta_v3(base[Mesh.ARRAY_VERTEX], tarr[Mesh.ARRAY_VERTEX])
+	if base[Mesh.ARRAY_NORMAL] != null:
+		bs[Mesh.ARRAY_NORMAL] = _delta_v3(base[Mesh.ARRAY_NORMAL], tarr[Mesh.ARRAY_NORMAL])
+	if base[Mesh.ARRAY_TANGENT] != null:
+		bs[Mesh.ARRAY_TANGENT] = _delta_f(base[Mesh.ARRAY_TANGENT], tarr[Mesh.ARRAY_TANGENT])
 	_mesh = ArrayMesh.new()
 	_mesh.blend_shape_mode = Mesh.BLEND_SHAPE_MODE_RELATIVE
 	_mesh.add_blend_shape("thick")
@@ -36,8 +39,16 @@ static func morph_mesh() -> ArrayMesh:
 	return _mesh
 
 
-static func _delta(a: PackedVector3Array, b: PackedVector3Array) -> PackedVector3Array:
+static func _delta_v3(a: PackedVector3Array, b: PackedVector3Array) -> PackedVector3Array:
 	var d := PackedVector3Array()
+	d.resize(a.size())
+	for i in a.size():
+		d[i] = b[i] - a[i]
+	return d
+
+
+static func _delta_f(a: PackedFloat32Array, b: PackedFloat32Array) -> PackedFloat32Array:
+	var d := PackedFloat32Array()
 	d.resize(a.size())
 	for i in a.size():
 		d[i] = b[i] - a[i]
