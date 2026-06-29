@@ -182,3 +182,89 @@ camera/lighting.
 
 Everything past step 5 (spline hull, blueprints, O2/water, multi-class) is **[VISION]** and
 stays parked until the core loop is proven fun (`prototype_scope.md` definition of done).
+
+---
+
+## Build/edit interaction — the Tiny Glade lesson (research 2026-06-29)
+
+> The interaction model these findings drove — four phases (Shape/Structure/Systems/Decorate) as
+> selection filters, six shared grammars, one universal modifier language, on-object handles + a flat
+> variant palette (no radial) — is specced in `ship_designer_spec.md` → "Interaction model — the
+> unified grammar". This section is the *why*; that section is the *what to build*.
+
+The sections above optimised *network routing* and *show-off*. This one targets the
+**moment-to-moment build/edit feel** — the real complaint in play: *"building/editing requires
+too many clicks and isn't obvious."* Researched **Tiny Glade** (north-star), **ShipShaper**
+(closest direct comparable, by Tomas Sala / The Falconeer), **The Sims 4** (click-economy gold
+standard), and the HCI literature on modeless editing + radial menus.
+
+### The reframe: Tiny Glade is NOT tool-less — it's *modeless*
+The key correction to our assumption. Tiny Glade still has a tool palette (wall, building, tower,
+path, window, ground) — like our toolbar. Its magic is **how the tools behave**, not their absence:
+- **Direct manipulation with on-object handles.** Drag to extend a wall, then **grab its top edge
+  and pull up** to raise height; drag a box for a building; push/pull a tower's height & diameter.
+  **Handles appear ON the object on hover** — never a separate "Edit" mode or nested menu. *(The
+  single most transferable mechanic.)*
+- **Procedural auto-completion.** Paths meeting walls auto-spawn archways/doors; props/ivy fill in.
+  The player shapes big forms; **detail places itself** — deleting whole categories of fiddly clicks.
+- **Instant feedback + no-fail freedom.** Every action has a visual/sound response; non-prescriptive
+  ("like giving a child LEGO bricks"). Feel comes as much from this as from layout.
+
+### Per-game breakdown
+| Game | Interaction model | The transferable bit |
+|---|---|---|
+| **Tiny Glade** | Tool palette, but **modeless** — drag-direct, hover reveals handles **on the object**, no interrupting menus | **On-object hover handles** + procedural auto-completion of detail |
+| **ShipShaper** (Sala) | **Gridless** push/pull/drag sculpt of one continuous, symmetrically-mirrored welded hull + discrete prop attach. Deliberately **rejects CAD "lists and precision-placement"** for "minimalist, exploratory" | Philosophy: reject menu-heavy precision; **symmetry/mirror as a first-class affordance**. (Caveat: gridless, and a Feb-2026 demo that may evolve — no hands-on feel confirmation) |
+| **The Sims 4** | Modal tools, but the click-economy playbook on top | **1-key tool swaps** (B/H/E/R/K); **eyedropper (E) clones** without catalog trips; **Shift** = place-multiples / flood-fill; **Alt** = *held* override of grid snap — **modifiers change the active tool's behaviour instead of forcing a mode switch** |
+| **HCI** | Modal dialogs/modes interrupt flow + add read-comprehend-decide cost (NN/g). Pie menus are fast **only at ≤~8 items, 1 level** (Callahan et al. CHI'88) | **Depth is the enemy.** Our 3-deep Edit radial is the textbook anti-pattern |
+
+### Diagnosis of our current designer
+- **Too many modal tools** (Select/Delete/Edit/Hull/Rooms/Doors/Equipment/Route/Riser) → constant
+  toolbar round-trips, each a mode-switch with read-comprehend-decide cost.
+- **The Edit radial is 3 levels deep** (select walls → Edit → ⬢ Walls → Wall 1 → slider). Research
+  verdict: the *depth*, not the radial form, is the problem — and the right fix isn't a shallower
+  radial, it's **on-object handles** that drop the radial for editing entirely.
+- We removed the control-hint bar (it didn't scale) → **discoverability dropped**; shortcuts exist
+  (`des_*` InputMap) but aren't surfaced.
+
+### Recommendations (prioritised)
+**Quick wins — cheap, high-impact, [PROTOTYPE]:**
+1. **Modifier overrides instead of mode-switches** (Sims 4): hold **Shift** to keep placing Equipment
+   (don't drop to Select after one); Shift/Ctrl for line/rect fill inside the active tool; make the
+   **eyedropper/clone** (`des_copy` / `_copy_selected`) prominent — research confirms it as a top
+   click-saver.
+2. **Surface the 1-key tool shortcuts** we already have — a compact, always-visible legend or
+   per-tool tooltip (replace the cut hint-bar with something that scales). One keypress beats a
+   toolbar trip.
+3. **Instant placement juice** (already build-order step 1) — snap + sound + pop per action.
+
+**The headline redesign — bigger, [PROTOTYPE] for walls first:**
+4. **Replace the Edit mode + 3-deep radial with on-object hover handles.** In the default Select
+   mode, hovering a wall reveals a **drag-handle on the wall** to morph flat↔thick directly (exactly
+   Tiny Glade's "grab the wall top and pull"). No Edit button, no Walls→Wall 1→slider. Biggest single
+   fix for "too many clicks + not obvious," and we already have the wall mesh + morph to hang it on.
+5. **Auto-completion of detail** [mostly VISION]: auto-place doors where a corridor meets a room wall;
+   auto-trim. Shapes get placed; fiddly detail fills itself in.
+
+**Where we genuinely CAN'T be as simple as Tiny Glade (don't pretend to):**
+- **Selection disambiguation** is harder for us: multi-deck + overlapping walls/equipment means
+  "hover reveals the right handles" needs a disambiguation rule (our active-deck focus helps — one
+  deck at a time). **Solve this before on-object handles can fully replace the Edit mode.**
+- **Networks + contract validation** need inline feedback — but the answer is the
+  **overlay-per-network system specced above**, not modal dialogs or a separate inspect mode.
+- Transfer the **principles** (on-object handles, modeless modifiers, shallow/no menus,
+  auto-completion, instant feedback) — **not** ShipShaper's gridless sculpt or Tiny Glade's
+  single-deck simplicity.
+
+### Open questions before building #4 (on-object handles)
+- Selection disambiguation among overlapping walls/decks/equipment without a dedicated Select mode.
+- The discrete-placement click-path (Equipment/Doors/Route) — how to keep it modeless (ShipShaper's
+  prop-attach is the analog; under-documented).
+- Inline validation feedback (networks/contract) without reintroducing modal dialogs.
+
+Sources: [Tiny Glade dev interview (80.lv)](https://80.lv/articles/exclusive-tiny-glade-developers-discuss-bevy-proceduralism-publishers-cozy-games),
+[Tiny Glade teardown](https://medium.com/@adventuresinindiegaming/doodle-designer-tiny-glade-5fac5a60ebb4),
+[ShipShaper (Steam)](https://store.steampowered.com/app/4339280/ShipShaper/) + [Sala interview](https://www.fixgamingchannel.com/shipshaper-demo-launch-tomas-sala-on-flow-minimalism/),
+[Sims 4 hotkeys](https://simscommunity.info/2022/01/24/the-sims-4-build-buy-hotkey-guide/),
+[NN/g modal vs modeless](https://www.nngroup.com/articles/modal-nonmodal-dialog/),
+[Pie menus / Callahan CHI'88](https://en.wikipedia.org/wiki/Pie_menu).

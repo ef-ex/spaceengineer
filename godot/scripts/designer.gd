@@ -33,8 +33,6 @@ var _deck_count: int = 1
 var _mirror := false
 var _full_view := false
 var _gate_proxy: Node3D   # toggleable size reference for the contract gate
-var _unit_ref: Node3D     # toggleable 1×1×1 reference cube (Houdini→Godot import-scale check)
-var _human_ref: Node3D    # toggleable 1.8 m human yardstick (tile-size / deck-height feel check)
 
 var _undo: Array = []
 var _redo: Array = []
@@ -59,6 +57,9 @@ var _hover: Variant = null
 var _last_cell: Variant = null   # last in-grid cell, so drags off the edge still resolve
 var _hover_edge: Variant = null  # {cell, dir} wall edge under the cursor, for the Doors tool
 var _hover_wall: Variant = null  # {deck, cell, dir} wall under the cursor (raycast), for the Walls tool
+var _wall_handle_drag := false   # dragging the on-object morph handle on the wall selection
+var _drag_start_mouse := Vector2.ZERO
+var _drag_start_morph := 0.0
 
 # UI refs
 var _tool_buttons := {}
@@ -110,8 +111,6 @@ func _ready() -> void:
 	_preview = Node3D.new()
 	add_child(_preview)
 	_build_gate_proxy()
-	_build_unit_ref()
-	_build_human_ref()
 	_build_forward_indicator()
 	_build_ui()
 	_update_camera()
@@ -158,72 +157,6 @@ func _build_gate_proxy() -> void:
 func _set_gate(on: bool) -> void:
 	if _gate_proxy:
 		_gate_proxy.visible = on
-
-
-func _build_unit_ref() -> void:
-	# The imported FBX unit cube, anchored so its near-lower corner sits at grid cell
-	# (0,0) on deck 0: a true 1 m cube then fills exactly one cell — a live check that
-	# the Houdini→Godot FBX scale (root_scale=100) really lands at 1 unit = 1 cell.
-	var scene := load("res://models/unitcube.fbx")
-	if scene == null:
-		return
-	_unit_ref = scene.instantiate()
-	add_child(_unit_ref)
-	var aabb := _node_aabb(_unit_ref)
-	var floor_top := _floor_y(0) + config.cell_size * 0.12   # top of the deck slab
-	_unit_ref.position = Vector3(-aabb.position.x, floor_top - aabb.position.y, -aabb.position.z)
-	_unit_ref.visible = false
-
-
-func _node_aabb(root: Node3D) -> AABB:
-	# Union of the instance's mesh AABBs (cube is shallow, so child.transform is
-	# relative to root) — used to anchor the reference cube by its corner.
-	var out := AABB()
-	var has := false
-	for child in root.find_children("*", "MeshInstance3D", true, false):
-		var a: AABB = child.transform * child.get_aabb()
-		out = a if not has else out.merge(a)
-		has = true
-	return out
-
-
-func _set_unit_ref(on: bool) -> void:
-	if _unit_ref:
-		_unit_ref.visible = on
-
-
-func _build_human_ref() -> void:
-	# A 1.8 m capsule standing on a floor tile — the human-scale yardstick for tuning
-	# tile size and deck height (does a person fit, or is it a coffin?). On by default
-	# while we dial the scale; toggle off with the "Human" check.
-	_human_ref = Node3D.new()
-	var mi := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.25
-	cap.height = 1.8
-	mi.mesh = cap
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.88, 0.55, 0.35)
-	mi.material_override = m
-	mi.position = Vector3(0, cap.height * 0.5, 0)   # feet on the tile
-	_human_ref.add_child(mi)
-	var l := Label3D.new()
-	l.text = "1.8 m"
-	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.pixel_size = 0.008
-	l.position = Vector3(0, cap.height + 0.2, 0)
-	l.modulate = Color(1, 0.85, 0.7)
-	l.outline_size = 4
-	_human_ref.add_child(l)
-	# Stand in tile (2,2), clear of the unit cube in (0,0).
-	var floor_top := _floor_y(0) + config.cell_size * 0.12
-	_human_ref.position = Vector3(2.5 * config.cell_size, floor_top, 2.5 * config.cell_size)
-	add_child(_human_ref)
-
-
-func _set_human_ref(on: bool) -> void:
-	if _human_ref:
-		_human_ref.visible = on
 
 
 func _build_forward_indicator() -> void:
@@ -340,7 +273,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			MOUSE_BUTTON_RIGHT:
 				_paint_button(false, event)
 	elif event is InputEventMouseMotion:
-		if _orbiting:
+		if _wall_handle_drag:
+			_drag_handle(event.position)
+		elif _orbiting:
 			# Default matches DCC software (drag down -> tilt up to the top); the
 			# Settings "Invert camera Y" flips it for free-look-style players.
 			var pitch_sign := -1.0 if SettingsManager.invert_camera_y else 1.0
@@ -398,7 +333,9 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 			_wall_click(event.position, add, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
 			return
 		if _tool == Tool.SELECT:
-			_close_radial()   # any new click collapses an open Edit menu
+			if add and _begin_handle_drag(event.position):
+				return   # grabbed the on-object morph handle — drag to scrub flat<->thick
+			_close_radial()   # any new click collapses a stale menu
 			if add:
 				if _wall_at(event.position) != null:
 					_wall_click(event.position, true, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
@@ -427,6 +364,10 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 				_drag_start = cell
 				_update_preview()
 	else:
+		if _wall_handle_drag:
+			_wall_handle_drag = false
+			_update_preview()
+			return
 		if _tool == Tool.SELECT and _moving:
 			_moving = false
 			if cell != null:
@@ -933,8 +874,10 @@ func _update_preview() -> void:
 				var scol := config.ghost_color if sok else config.ghost_invalid_color
 				for c in scells:
 					_add_preview_cell(c, y, scol)
-		elif _hover_wall != null:
+		elif _hover_wall != null and not _wall_handle_drag:
 			_add_wall_marker(_preview, _hover_wall.cell, _hover_wall.dir, config.ghost_color)
+		if not _wall_sel.is_empty():
+			_draw_wall_handle()   # on-object morph handle replaces the old Edit radial
 		return
 
 	if _tool == Tool.DOOR:
@@ -1172,9 +1115,6 @@ func _build_ui() -> void:
 	build.add_child(tools)
 	_tool_buttons[Tool.SELECT] = _add_tool(tools, "Select", Tool.SELECT)
 	_tool_buttons[Tool.DELETE] = _add_tool(tools, "Delete", Tool.DELETE)
-	var edit_btn := _button("Edit")
-	edit_btn.pressed.connect(_open_edit_radial)
-	tools.add_child(edit_btn)
 	_tool_buttons[Tool.HULL] = _add_tool(tools, "Hull", Tool.HULL)
 	_tool_buttons[Tool.ROOM] = _add_tool(tools, "Rooms", Tool.ROOM)
 	_tool_buttons[Tool.DOOR] = _add_tool(tools, "Doors", Tool.DOOR)
@@ -1229,20 +1169,6 @@ func _build_ui() -> void:
 		gate_check.focus_mode = Control.FOCUS_NONE
 		gate_check.toggled.connect(_set_gate)
 		deckrow.add_child(gate_check)
-	var cube_check := CheckButton.new()
-	cube_check.text = "Cube"
-	cube_check.tooltip_text = "Show a 1×1×1 reference cube in corner cell (0,0) — checks the FBX import scale"
-	cube_check.focus_mode = Control.FOCUS_NONE
-	cube_check.toggled.connect(_set_unit_ref)
-	deckrow.add_child(cube_check)
-	var human_check := CheckButton.new()
-	human_check.text = "Human"
-	human_check.tooltip_text = "Show a 1.8 m human standing on a tile — the scale yardstick"
-	human_check.button_pressed = true
-	human_check.focus_mode = Control.FOCUS_NONE
-	human_check.toggled.connect(_set_human_ref)
-	deckrow.add_child(human_check)
-
 
 
 func _add_tool(bar: HBoxContainer, text: String, tool: int) -> Button:
@@ -1388,6 +1314,7 @@ func _wall_click(screen_pos: Vector2, add: bool, shift: bool, ctrl: bool) -> voi
 		_wall_anchor = w
 	_render()
 	_refresh_ui()
+	_update_preview()   # surface the morph handle immediately on selection
 
 
 func _wall_run(a: Dictionary, b: Dictionary) -> Dictionary:
@@ -1414,49 +1341,100 @@ func _wall_run(a: Dictionary, b: Dictionary) -> Dictionary:
 	return out
 
 
-# --- Select mode: hover-to-select + radial context menu (Tiny-Glade style) ---
+# --- Select mode: on-object morph handle (Tiny-Glade-style direct manipulation) ---
+# Selecting a wall reveals a draggable handle floating off its face; dragging it scrubs
+# the whole selection's flat<->thick morph live. Replaces the old 3-level Edit radial
+# (Edit -> Walls -> Wall 1 -> slider). Feel knobs live in DesignerConfig ("Wall handle").
 
-func _open_edit_radial() -> void:
-	# Level 1 — the tools available for the selection. Only the wall/hull tool exists
-	# yet (one icon); colour / texture / paint join this ring later. Click it to drop
-	# into that tool's own options (level 2).
+func _begin_handle_drag(pos: Vector2) -> bool:
+	# True if the press landed on the selection's morph handle — start a live scrub.
 	if _wall_sel.is_empty():
+		return false
+	var h = _handle_world_pos()
+	if h == null:
+		return false
+	var hpos: Vector3 = h
+	if _cam.unproject_position(hpos).distance_to(pos) > config.handle_pick_px:
+		return false
+	_wall_handle_drag = true
+	_drag_start_mouse = pos
+	_drag_start_morph = _selection_morph()
+	_push_undo()   # one drag = one undo step
+	return true
+
+
+func _drag_handle(pos: Vector2) -> void:
+	# Map cursor travel along the wall's outward normal to a 0..1 morph: pull out = thicker.
+	if _wall_sel.is_empty():
+		_wall_handle_drag = false
 		return
-	_show_radial(_selection_screen_center(), [{"text": "⬢ Walls", "cb": func(): _open_wall_pieces()}])
+	var h = _handle_world_pos()
+	if h == null:
+		return
+	var hpos: Vector3 = h
+	var out := _selection_outward()
+	var axis := Vector2.ZERO
+	if out.length() > 0.01:
+		axis = _cam.unproject_position(hpos + out * 0.5) - _cam.unproject_position(hpos)
+	var morph: float
+	if axis.length() > 1.0:
+		var delta := (pos - _drag_start_mouse).dot(axis.normalized())
+		morph = clampf(_drag_start_morph + delta / config.handle_drag_px, 0.0, 1.0)
+	else:
+		# Outward axis points at/away from the camera (degenerate on screen): up = thicker.
+		morph = clampf(_drag_start_morph + (_drag_start_mouse.y - pos.y) / config.handle_drag_px, 0.0, 1.0)
+	_apply_morph_to_sel(morph)
+	_update_preview()
 
 
-func _open_wall_pieces() -> void:
-	# Level 2 — the wall pieces this tool offers. Just "Wall 1" (the morphable mesh) yet;
-	# more pieces (corner, etc.) become more icons on this ring.
-	_show_radial(_selection_screen_center(), [{"text": "Wall 1", "cb": func(): _pick_wall_piece()}])
-
-
-func _pick_wall_piece() -> void:
-	# Assign Wall 1's mesh to the selection (morph 0 if unset), then open its control.
-	_push_undo()
+func _handle_world_pos() -> Variant:
+	# Centroid of the active-deck selected walls, floated off the face along their
+	# outward normal so the handle reads as grabbable. null if none on this deck.
+	var sum := Vector3.ZERO
+	var n := 0
 	for key in _wall_sel:
 		var w: Dictionary = _wall_sel[key]
-		if _model.wall_morph(w.deck, w.cell, w.dir) < 0.0:
-			_model.set_wall_morph(w.deck, w.cell, w.dir, 0.0)
-	_render()
-	_open_morph_slider()
+		if w.deck != _active_deck:
+			continue
+		sum += _wall_center_world(w)
+		n += 1
+	if n == 0:
+		return null
+	return sum / float(n) + _selection_outward() * config.handle_offset_m
 
 
-func _open_morph_slider() -> void:
-	# Level 3 — Wall 1's control: a continuous flat<->thick morph slider that scrubs the
-	# whole selection live. Undo was pushed when the piece was assigned.
-	_close_radial()
-	var slider := HSlider.new()
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	slider.value = _selection_morph()
-	slider.custom_minimum_size = Vector2(190, 26)
-	slider.size = Vector2(190, 26)
-	slider.position = _selection_screen_center() - slider.size * 0.5
-	slider.value_changed.connect(_apply_morph_to_sel)
-	_radial.add_child(slider)
-	_radial.visible = true
+func _selection_outward() -> Vector3:
+	# Averaged outward (open-space-facing) normal of the selection; UP if facings cancel.
+	var nrm := Vector3.ZERO
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		if w.deck != _active_deck:
+			continue
+		nrm += Vector3(w.dir.x, 0.0, w.dir.y)
+	return nrm.normalized() if nrm.length() > 0.01 else Vector3.UP
+
+
+func _draw_wall_handle() -> void:
+	# A small unshaded sphere at the handle point, distance-scaled to a near-constant
+	# screen size and drawn on top (no depth test) so it stays visible and grabbable.
+	var h = _handle_world_pos()
+	if h == null:
+		return
+	var hpos: Vector3 = h
+	var sphere := SphereMesh.new()
+	sphere.radial_segments = 12
+	sphere.rings = 6
+	var mi := MeshInstance3D.new()
+	mi.mesh = sphere
+	mi.position = hpos
+	var s := maxf(_cam.global_position.distance_to(hpos) * config.handle_screen_scale, 0.05)
+	mi.scale = Vector3(s, s, s)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = config.handle_color
+	m.no_depth_test = true
+	mi.material_override = m
+	_preview.add_child(mi)
 
 
 func _selection_morph() -> float:
@@ -1464,17 +1442,6 @@ func _selection_morph() -> float:
 		var w: Dictionary = _wall_sel[key]
 		return maxf(_model.wall_morph(w.deck, w.cell, w.dir), 0.0)
 	return 0.0
-
-
-func _selection_screen_center() -> Vector2:
-	var sum := Vector3.ZERO
-	var n := 0
-	for key in _wall_sel:
-		sum += _wall_center_world(_wall_sel[key])
-		n += 1
-	if n == 0:
-		return get_viewport().get_visible_rect().size * 0.5
-	return _cam.unproject_position(sum / float(n))
 
 
 func _apply_morph_to_sel(value: float) -> void:
@@ -1506,26 +1473,6 @@ func _wall_center_world(w: Dictionary) -> Vector3:
 	var cz: float = (cell.y + 0.5) * cs + dir.y * cs * 0.5
 	var cy: float = _floor_y(w.deck) + slab + (config.deck_height - slab) * 0.5
 	return Vector3(cx, cy, cz)
-
-
-func _show_radial(center: Vector2, items: Array) -> void:
-	for c in _radial.get_children():
-		c.queue_free()
-	var n := items.size()
-	var radius: float = 96.0 if n > 1 else 0.0
-	for i in n:
-		var it: Dictionary = items[i]
-		var b := Button.new()
-		b.text = it.text
-		b.focus_mode = Control.FOCUS_NONE
-		b.size = Vector2(80, 32)
-		var ang: float = -PI * 0.5 + TAU * float(i) / float(n)
-		var p := center + Vector2(cos(ang), sin(ang)) * radius
-		b.position = p - b.size * 0.5
-		var cb: Callable = it.cb
-		b.pressed.connect(cb)
-		_radial.add_child(b)
-	_radial.visible = true
 
 
 func _close_radial() -> void:

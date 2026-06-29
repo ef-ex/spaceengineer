@@ -16,6 +16,79 @@
 - **Deck editing UX:** edit **one deck at a time**; **up/down arrow buttons** hide/reveal decks so
   the player focuses on the active floor; plus a **full-ship view** to see the whole assembly.
 
+## Interaction model — the unified grammar
+
+All designer tools share **one operating model**, so the player learns the verbs once and every
+system reuses them. This is the consistency/low-click layer that sits above the per-system mechanics
+below. Motivation + reference games in `designer_ux_research.md` ("Build/edit interaction"). The full
+tool set is **designed into this grammar now; only the prototype slice is built** (see "Prototype
+subset" — Decorate, painting, splines, texture, ventilation slot in later with no rework).
+
+### Four build phases (a tab/rail — *and* a selection filter)
+A small persistent switch selects the active phase: **Shape · Structure · Systems · Decorate**.
+Crucially a phase is **also a selection filter** — it scopes what the cursor can hover/pick — so the
+context cursor is never ambiguous even when elements overlap (a decal on a wall on a floor). This is
+how on-object handles replace a dedicated Select mode *and* solve the multi-deck overlap problem that
+Tiny Glade (single-deck) never faces.
+
+| Phase | Scopes / authors | Owns (per-system sections below) |
+|---|---|---|
+| **Shape** | the hull outline → the grid | hull pieces · rectangle/cell · (vision: spline outline) |
+| **Structure** | wall / floor / ceiling meshes | mesh swap + deform handles · (vision: custom-wall draw tool) |
+| **Systems** | function on the grid | rooms · equipment · routed networks (power · heat · **air** · water) |
+| **Decorate** | non-functional surface/detail | decorative props · texture/material swap · painting · detail splines |
+
+### Six shared grammars (every tool is exactly one)
+1. **Paint cells** — LMB-drag adds, RMB-drag removes (hull shape, floor fill).
+2. **Box-drag** — drag a rectangle for an extent (rooms, rectangle hull, paint-rectangle).
+3. **Place + snap** — ghost follows cursor, snaps, LMB commits (equipment, decorative props, doors).
+4. **Select + handles** — hover highlights, on-object handles deform, a flat palette swaps variants
+   (wall/floor/ceiling mesh edit, deformable decor). **No radial** — handles + a flat variant strip
+   (≤~8 visible, scroll/search beyond); the old 3-deep Edit radial is retired.
+5. **Path / spline** — click points or drag a route (cables, heat-pipes, **air/vent**, panel-line
+   decal-ribbon, spline geometry-repeat — same draw, differing only in what it emits).
+6. **Surface paint** — brush / rectangle / spline-stamp onto a mesh surface + eyedropper-sample
+   (texture/material swap, painting).
+
+### One universal modifier language (same meaning in every grammar)
+- **Shift** = repeat / line (keep placing; line-fill) · **Ctrl** = subtract / toggle ·
+  **Alt** = free — *escape snap* (grid or surface) and reveal the move/rotate/scale gizmo ·
+  **R** = rotate (`des_rotate`) · **C** = eyedropper-clone (`des_copy`, already bound) ·
+  **drag a handle** = deform · **flat palette** = variant. (`E` is reserved by the fly-camera.)
+- Snapping is the **default** in every grammar; `Alt` always escapes it. Free-form decorative
+  placement is therefore not a separate tool — it is the universal `Alt` rule. Decorative props snap
+  to the **surface under the cursor and align to its normal** (vs equipment's grid snap), may be
+  placed anywhere interior/exterior, and may overlap (Decorate phase runs no valid-cell/collision
+  check).
+
+### Single-key phase + tool shortcuts
+Each phase and its grammar bind to a single key (the `des_*` InputMap), one keypress to switch,
+never a toolbar round-trip (Sims-4 click-economy). Modifier keys are surfaced by a **contextual
+legend** — a small strip showing only the *active tool's* modifiers (e.g. while placing equipment:
+`Shift` keep placing · `R` rotate), not a permanent all-keys cheat-sheet. The retired scale-check
+refs (unit cube, human yardstick) are removed now that the 1 m grid is confirmed.
+
+### Input scope & UI-shell rules (decided 2026-06-29)
+Evaluated against the `game-ui-ux` skill; these are the deliberate decisions that came out of it.
+
+- **Mouse + desktop-first. No controller / Steam-Deck compromise.** The direct-manipulation core
+  (hover-reveal handles, drag-to-morph, raycast picking) is built for **mouse + keyboard**. We
+  deliberately do **not** add gamepad/focus-navigation to make one UI serve every device — a
+  universal UI always compromises. *If* the game succeeds enough to warrant Steam Deck, it gets a
+  **purpose-built Deck UI**, not a retrofit. (So `game-ui-ux`'s focus-navigation requirement is
+  intentionally **out of scope**.)
+- **Responsive layout, no absolute pixels.** Build the phase rail, variant palette, shortcut legend
+  and all chrome from `Control` **anchors + containers** (HBox/VBox/Grid/Margin), never hard-coded
+  `(x, y)` — so the desktop UI survives window-resize / ultrawide. Stretch = `canvas_items` +
+  `expand` at a reference resolution. **Retire the radial's absolute centre-positioning.**
+- **World-space handles clamp + scale.** On-object handles are *spatial* UI: clamp them to screen
+  edges when their anchor goes off-screen, and scale with camera distance so they stay grabbable.
+- **State never by colour alone.** Network overlays (power/heat/air/water) and validation feedback
+  carry a second channel — icon / shape / label — not hue only (colour-blind safety). Pairs with the
+  overlay design in `designer_ux_research.md`.
+- **Overlays as a screen stack.** Settings, delivery view, and confirm dialogs push/pop on a stack,
+  not boolean flags. Tool state stays the per-phase context cursor.
+
 ## Shape definition (the hull / exterior, Layer 1)
 
 The player defines which grid tiles make up the ship — maximum artistic freedom, minimum friction.

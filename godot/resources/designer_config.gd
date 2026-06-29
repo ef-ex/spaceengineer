@@ -79,3 +79,17 @@ extends Resource
 ## Conduit segment visual: height above the floor and box thickness.
 @export var conduit_height: float = 0.14
 @export var conduit_thickness: float = 0.24
+
+@export_group("Wall handle")
+## On-object morph handle (Select mode): drag it to scrub a wall selection's
+## flat<->thick morph live — replaces the old 3-level Edit radial. All feel knobs.
+## Screen-pixel radius within which a click grabs the handle.
+@export var handle_pick_px: float = 24.0
+## Cursor pixels of drag for a full 0..1 morph sweep. Lower = more sensitive.
+@export var handle_drag_px: float = 180.0
+## How far (m) the handle floats off the wall face along its outward normal.
+@export var handle_offset_m: float = 0.5
+## Distance->scale factor so the handle holds a near-constant on-screen size.
+@export var handle_screen_scale: float = 0.02
+## Handle colour.
+@export var handle_color: Color = Color(1.0, 0.78, 0.25)
