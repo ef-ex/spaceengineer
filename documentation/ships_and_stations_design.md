@@ -120,6 +120,26 @@ Sources: [80.lv dev interview](https://80.lv/articles/exclusive-tiny-glade-devel
 [80.lv: believability in procedural modelling](https://80.lv/articles/siggraph-believability-in-procedural-modelling).
 (Researched 2026-06-26; flagged claims are where sources were thin or contradicted.)
 
+### Secondary reference — ShipShaper (modeling-tool verb + UI watch-item)
+**ShipShaper** (Tomas Sala / Wired Productions; "coming soon" with a public demo, 2026) is a reference
+to **keep an eye on alongside Tiny Glade**, on two specific axes:
+
+- **Modeling-tool verb (positive reference).** Its core act — *pull, push, and drag forms into place*
+  to shape a hull, no 3D skills and no cube-stacking — is **very close to the free-form hull-shaping
+  verb we want**. Closest existing demonstration of the "shaping feels good without a modeling
+  background" feel. Worth playing the demo to study how it makes that verb satisfying.
+- **UI complexity (cautionary watch-item).** Our designer needs **more UI complexity than Tiny Glade**
+  (interior layout, conduit routing, contract specs, gate-fit, economy — Tiny Glade is a near-chromeless
+  cozy toy, which our scope can't fully be). ShipShaper sits closer to *our* UI-complexity band, so it's
+  the better mirror for that problem — **but its current UI does not yet feel good**, so treat it as a
+  "learn from what's awkward" reference, not a template.
+
+**Not a competitor:** ShipShaper builds **water ships, not spacecraft**, and is a **pure creative
+sandbox** — no clients, economy, reputation, or career loop (our whole job-sim wrapper). It also
+currently exposes **fewer building features than we intend**. Tiny Glade remains the **feel/quality
+north-star above**; ShipShaper is a **secondary reference** for the modeling-tool verb and as a UI
+mirror. (Noted 2026-06-29. Steam: <https://store.steampowered.com/app/4339280/ShipShaper/>)
+
 ---
 
 ## The interior puzzle = connectivity & proximity, NOT bonus tables

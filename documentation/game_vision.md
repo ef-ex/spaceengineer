@@ -5,7 +5,8 @@
 after the player's in-game ship workshop. Steam/USPTO/EU-trademark-clear as of that date; not yet registered.
 **Read-first doc.** Detail lives in `ship_designer_spec.md` (designer mechanics + visuals),
 `mission_generator.md`, `ships_and_stations_design.md` (build model + interior),
-`prototype_scope.md` (scope + vision parking lot), `open_questions.md`.
+`prototype_scope.md` (scope + vision parking lot), `open_questions.md`,
+`marketing_strategy.md` (go-to-market + competitive commercial evidence).
 
 ---
 
