@@ -93,3 +93,30 @@ extends Resource
 @export var handle_screen_scale: float = 0.02
 ## Handle colour.
 @export var handle_color: Color = Color(1.0, 0.78, 0.25)
+
+@export_group("UI style")
+## "Workbench" technical-FUI skin for the designer UI. Built into a Theme at
+## runtime (designer.gd::_build_theme) and a custom corner-bracket StyleBox. Edit
+## here to retune the chrome. Locked direction; see the ui_style_prototypes docs.
+## Translucent navy panel fill.
+@export var ui_panel_fill: Color = Color(0.035, 0.118, 0.235, 0.74)
+## Hairline panel/button border.
+@export var ui_panel_border: Color = Color(0.51, 0.78, 1.0, 0.40)
+## Cyan corner-bracket accent drawn at each panel corner.
+@export var ui_bracket_color: Color = Color(0.435, 0.823, 1.0, 1.0)
+## Warm accent — active phase tab, deliver, alerts.
+@export var ui_accent_warm: Color = Color(1.0, 0.812, 0.478)
+## Cool accent — active tool, structure cues.
+@export var ui_accent_cool: Color = Color(0.435, 0.823, 1.0)
+@export var ui_text_primary: Color = Color(0.863, 0.937, 1.0)
+@export var ui_text_secondary: Color = Color(0.561, 0.714, 0.863)
+@export var ui_text_muted: Color = Color(0.365, 0.514, 0.678)
+## Base UI font size (px). Buttons/labels without an explicit override use this.
+@export var ui_font_size: int = 13
+## Corner-bracket arm length and stroke width (px).
+@export var ui_bracket_length: float = 12.0
+@export var ui_bracket_width: float = 2.0
+## Panel hairline border width (px).
+@export var ui_border_width: float = 1.0
+## Panel inner padding (px).
+@export var ui_pad: int = 14

@@ -8,6 +8,9 @@ extends Node3D
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
+const CornerBracketStyleBox := preload("res://scripts/ui/corner_bracket_stylebox.gd")
+const RadialGauge := preload("res://scripts/ui/radial_gauge.gd")
+const WallRuler := preload("res://scripts/ui/wall_ruler.gd")
 
 enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL, DELETE }
 enum Phase { SHAPE, STRUCTURE, SYSTEMS, DECORATE }
@@ -84,6 +87,16 @@ var _diag_focus: Button
 var _mirror_check: CheckButton
 var _deck_label: Label
 var _deliver_dialog: AcceptDialog
+var _ui_theme: Theme
+var _sb_phase_active: StyleBoxFlat   # amber fill applied to the active phase tab
+var _sb_tool_active: StyleBoxFlat    # cyan fill applied to the active tool
+var _pwr_gauge: RadialGauge
+var _heat_gauge: RadialGauge
+var _tele_rows: Dictionary = {}      # id -> value Label
+var _tele_disp: Dictionary = {}      # id -> displayed margin (source for the settle tween)
+var _tele_tw: Dictionary = {}        # id -> active settle Tween
+var _diag_focus_net: String = ""     # network the Focus button targets (may differ from overlay)
+var _wall_ruler: WallRuler           # measurement ruler shown beside a selected wall
 
 
 func _ready() -> void:
@@ -240,6 +253,7 @@ func _update_camera() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_wall_ruler()
 	# Free move: WASD pans the view across the ground plane (screen-relative), Q/E
 	# drop/raise it. Orbit (middle-drag) and zoom (wheel) are still in _input.
 	var fwd := -Vector3(sin(_yaw), 0.0, cos(_yaw))   # camera facing, flattened to ground
@@ -988,7 +1002,15 @@ func _build_ui() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui_theme = _build_theme()
+	root.theme = _ui_theme
 	layer.add_child(root)
+	_wall_ruler = WallRuler.new()
+	_wall_ruler.accent = config.handle_color
+	_wall_ruler.line_col = config.ui_panel_border
+	_wall_ruler.text_col = config.ui_text_primary
+	_wall_ruler.visible = false
+	root.add_child(_wall_ruler)
 
 	# Radial context menu (Tiny-Glade style): pops at a selected element with its
 	# actions; modal while open. Click empty space or right-click to dismiss.
@@ -996,6 +1018,7 @@ func _build_ui() -> void:
 	_radial.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_radial.mouse_filter = Control.MOUSE_FILTER_IGNORE   # non-modal: only its buttons catch clicks
 	_radial.visible = false
+	_radial.theme = _ui_theme
 	layer.add_child(_radial)
 
 	# --- Top-left: system menu --------------------------------------------------
@@ -1008,26 +1031,30 @@ func _build_ui() -> void:
 
 	# --- Top-centre: phase rail (Shape / Structure / Systems / Decorate) --------
 	# The top-level switch; also scopes which tools show below (the selection filter).
+	var rail_panel := PanelContainer.new()
+	rail_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	rail_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	rail_panel.offset_top = 10
+	root.add_child(rail_panel)
 	var rail := HBoxContainer.new()
-	rail.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	rail.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	rail.offset_top = 10
 	rail.add_theme_constant_override("separation", 6)
-	root.add_child(rail)
+	rail_panel.add_child(rail)
 	_phase_buttons[Phase.SHAPE] = _add_phase(rail, "Shape", Phase.SHAPE)
 	_phase_buttons[Phase.STRUCTURE] = _add_phase(rail, "Structure", Phase.STRUCTURE)
 	_phase_buttons[Phase.SYSTEMS] = _add_phase(rail, "Systems", Phase.SYSTEMS)
 	_phase_buttons[Phase.DECORATE] = _add_phase(rail, "Decorate", Phase.DECORATE)
 
 	# --- Top-right: information (status / overlays / diagnostics / deliver) ------
+	var rightcol := VBoxContainer.new()
+	rightcol.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	rightcol.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	rightcol.offset_right = -12
+	rightcol.offset_top = 12
+	rightcol.add_theme_constant_override("separation", 12)
+	root.add_child(rightcol)
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	panel.grow_vertical = Control.GROW_DIRECTION_END
-	panel.offset_right = -12
-	panel.offset_top = 12
 	panel.custom_minimum_size = Vector2(252, 0)
-	root.add_child(panel)
+	rightcol.add_child(panel)
 	var pv := VBoxContainer.new()
 	pv.add_theme_constant_override("separation", 8)
 	panel.add_child(pv)
@@ -1056,11 +1083,29 @@ func _build_ui() -> void:
 	_overlay_buttons["heat"] = _add_overlay(olrow, "Heat", "heat")
 
 	pv.add_child(HSeparator.new())
+	var gauges := HBoxContainer.new()
+	gauges.add_theme_constant_override("separation", 12)
+	gauges.alignment = BoxContainer.ALIGNMENT_CENTER
+	pv.add_child(gauges)
+	_pwr_gauge = RadialGauge.new()
+	gauges.add_child(_pwr_gauge)
+	_pwr_gauge.configure("POWER")
+	_heat_gauge = RadialGauge.new()
+	gauges.add_child(_heat_gauge)
+	_heat_gauge.configure("HEAT")
+
+	pv.add_child(HSeparator.new())
 	_stat_box = VBoxContainer.new()
 	_stat_box.add_theme_constant_override("separation", 6)
 	pv.add_child(_stat_box)
 
 	_diag_bar = PanelContainer.new()
+	var diag_sb := StyleBoxFlat.new()   # plain box (no nested brackets inside the info panel)
+	diag_sb.bg_color = Color(config.ui_accent_warm, 0.06)
+	diag_sb.set_border_width_all(1)
+	diag_sb.border_color = Color(config.ui_accent_warm, 0.30)
+	diag_sb.set_content_margin_all(8)
+	_diag_bar.add_theme_stylebox_override("panel", diag_sb)
 	var dh := HBoxContainer.new()
 	dh.add_theme_constant_override("separation", 8)
 	_diag_bar.add_child(dh)
@@ -1079,15 +1124,45 @@ func _build_ui() -> void:
 	deliver.pressed.connect(_deliver)
 	pv.add_child(deliver)
 
+	# Telemetry: real solver-derived readouts, animated within a small tolerance so
+	# the panel reads "live" (the wander is cosmetic; the base value is the truth).
+	var tele_panel := PanelContainer.new()
+	tele_panel.custom_minimum_size = Vector2(252, 0)
+	rightcol.add_child(tele_panel)
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 5)
+	tele_panel.add_child(tv)
+	var th := Label.new()
+	th.text = "TELEMETRY · LIVE"
+	th.add_theme_font_size_override("font_size", 11)
+	th.modulate = Color(1, 1, 1, 0.55)
+	tv.add_child(th)
+	for spec in [["PWR MARGIN", "pm"], ["HEAT MARGIN", "hm"], ["PARTS", "parts"], ["HULL CELLS", "cells"], ["BUDGET", "budget"]]:
+		var row := HBoxContainer.new()
+		var k := Label.new()
+		k.text = spec[0]
+		k.modulate = Color(1, 1, 1, 0.5)
+		k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(k)
+		var v := Label.new()
+		v.text = "--"
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		v.modulate = config.ui_accent_cool
+		row.add_child(v)
+		tv.add_child(row)
+		_tele_rows[spec[1]] = v
+
 	# --- Bottom-left: build cluster (place + edit) ------------------------------
+	var build_panel := PanelContainer.new()
+	build_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	build_panel.grow_horizontal = Control.GROW_DIRECTION_END
+	build_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	build_panel.offset_left = 12
+	build_panel.offset_bottom = -12
+	root.add_child(build_panel)
 	var build := VBoxContainer.new()
-	build.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	build.grow_horizontal = Control.GROW_DIRECTION_END
-	build.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	build.offset_left = 12
-	build.offset_bottom = -12
 	build.add_theme_constant_override("separation", 6)
-	root.add_child(build)
+	build_panel.add_child(build)
 
 	# Module picker flyout (top of the cluster; visible for the Module tool).
 	_module_picker = HBoxContainer.new()
@@ -1315,6 +1390,76 @@ func _button(text: String) -> Button:
 func _sep() -> Control:
 	var c := VSeparator.new()
 	return c
+
+
+# --- Theme (the "Workbench" skin) -------------------------------------------
+# Built in code from DesignerConfig so the palette stays in data. Panels get the
+# navy fill + hairline + corner brackets; buttons a hairline outline that brightens
+# on hover/press; the active phase/tool are filled in _refresh_ui.
+
+func _build_theme() -> Theme:
+	var t := Theme.new()
+	# Mono numerals for the technical feel; a broad system fallback covers symbols
+	# (☰ ▸ ⚡ ♨ ✓ …) that the mono face lacks. Bundle IBM Plex Mono for shipping.
+	var mono := SystemFont.new()
+	mono.font_names = PackedStringArray(["IBM Plex Mono", "Consolas", "Cascadia Mono", "Courier New"])
+	var fallback := SystemFont.new()
+	fallback.font_names = PackedStringArray(["Segoe UI Symbol", "Segoe UI Emoji", "Segoe UI", "Noto Sans"])
+	mono.fallbacks = [fallback]
+	t.default_font = mono
+	t.default_font_size = config.ui_font_size
+
+	var panel := CornerBracketStyleBox.new()
+	panel.fill_color = config.ui_panel_fill
+	panel.border_color = config.ui_panel_border
+	panel.bracket_color = config.ui_bracket_color
+	panel.border_width = config.ui_border_width
+	panel.bracket_length = config.ui_bracket_length
+	panel.bracket_width = config.ui_bracket_width
+	panel.set_content_margin_all(float(config.ui_pad))
+	t.set_stylebox("panel", "PanelContainer", panel)
+
+	var cool := config.ui_accent_cool
+	t.set_stylebox("normal", "Button", _btn_sb(Color(cool, 0.0), config.ui_panel_border))
+	t.set_stylebox("hover", "Button", _btn_sb(Color(cool, 0.08), Color(cool, 0.6)))
+	t.set_stylebox("pressed", "Button", _btn_sb(Color(cool, 0.16), cool))
+	t.set_stylebox("disabled", "Button", _btn_sb(Color(cool, 0.0), Color(config.ui_text_muted, 0.4)))
+	t.set_stylebox("focus", "Button", _btn_sb(Color(cool, 0.0), Color(cool, 0.0)))
+	t.set_color("font_color", "Button", config.ui_text_primary)
+	t.set_color("font_hover_color", "Button", config.ui_text_primary)
+	t.set_color("font_pressed_color", "Button", cool)
+	t.set_color("font_disabled_color", "Button", config.ui_text_muted)
+
+	t.set_color("font_color", "Label", config.ui_text_secondary)
+	t.set_color("font_color", "CheckButton", config.ui_text_secondary)
+	t.set_color("font_hover_color", "CheckButton", config.ui_text_primary)
+	t.set_color("font_pressed_color", "CheckButton", cool)
+
+	var hsep := StyleBoxLine.new()
+	hsep.color = Color(cool, 0.18)
+	hsep.thickness = 1
+	t.set_stylebox("separator", "HSeparator", hsep)
+	var vsep := StyleBoxLine.new()
+	vsep.color = Color(cool, 0.18)
+	vsep.thickness = 1
+	vsep.vertical = true
+	t.set_stylebox("separator", "VSeparator", vsep)
+
+	_sb_phase_active = _btn_sb(config.ui_accent_warm, config.ui_accent_warm)
+	_sb_tool_active = _btn_sb(Color(cool, 0.16), cool)
+	return t
+
+
+func _btn_sb(bg: Color, border: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(1)
+	sb.set_content_margin(SIDE_LEFT, 14.0)
+	sb.set_content_margin(SIDE_RIGHT, 14.0)
+	sb.set_content_margin(SIDE_TOP, 8.0)
+	sb.set_content_margin(SIDE_BOTTOM, 8.0)
+	return sb
 
 
 func _open_menu() -> void:
@@ -1683,10 +1828,33 @@ func _toggle_full(on: bool) -> void:
 
 
 func _refresh_ui() -> void:
+	var dim := Color(1, 1, 1, 0.55)
 	for t in _tool_buttons:
-		_tool_buttons[t].modulate = Color.WHITE if t == _tool else Color(1, 1, 1, 0.5)
+		var tb: Button = _tool_buttons[t]
+		if t == _tool:
+			tb.modulate = Color.WHITE
+			tb.add_theme_stylebox_override("normal", _sb_tool_active)
+			tb.add_theme_color_override("font_color", config.ui_accent_cool)
+		else:
+			tb.modulate = dim
+			tb.remove_theme_stylebox_override("normal")
+			tb.remove_theme_color_override("font_color")
 	for p in _phase_buttons:
-		_phase_buttons[p].modulate = Color.WHITE if p == _phase else Color(1, 1, 1, 0.5)
+		var pb: Button = _phase_buttons[p]
+		if p == _phase:
+			pb.modulate = Color.WHITE
+			pb.add_theme_stylebox_override("normal", _sb_phase_active)
+			pb.add_theme_stylebox_override("hover", _sb_phase_active)
+			pb.add_theme_stylebox_override("pressed", _sb_phase_active)
+			pb.add_theme_color_override("font_color", config.background_color)
+			pb.add_theme_color_override("font_hover_color", config.background_color)
+		else:
+			pb.modulate = dim
+			pb.remove_theme_stylebox_override("normal")
+			pb.remove_theme_stylebox_override("hover")
+			pb.remove_theme_stylebox_override("pressed")
+			pb.remove_theme_color_override("font_color")
+			pb.remove_theme_color_override("font_hover_color")
 	for p in _phase_rows:
 		_phase_rows[p].visible = p == _phase
 	if _wall_variant_picker:
@@ -1709,6 +1877,8 @@ func _refresh_ui() -> void:
 	for id in _room_buttons:
 		_room_buttons[id].modulate = Color.WHITE if id == _active_room else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
+	_update_gauges()
+	_update_telemetry()
 	_rebuild_diagnostics()
 
 
@@ -1723,14 +1893,7 @@ func _rebuild_stats() -> void:
 	else:
 		_stat_box.add_child(_stat_line("Cost", "¤%s" % _money(cost)))
 	_stat_box.add_child(_stat_line("Parts", str(_count_modules())))
-	if _results.has("power"):
-		var p: Dictionary = _results["power"]
-		_stat_box.add_child(_stat_line("Power", "%s / %s MW" % [_num(p.demand), _num(p.supply)],
-			config.status_error_color if not p.ok else config.status_ok_color))
-	if _results.has("heat"):
-		var h: Dictionary = _results["heat"]
-		_stat_box.add_child(_stat_line("Heat", "%s / %s kW" % [_num(h.demand), _num(h.supply)],
-			config.status_error_color if not h.ok else config.status_ok_color))
+	# Power / heat now read on the radial gauges (see _update_gauges).
 	if contract:
 		var have := 0
 		var filled := _model.filled_roles()
@@ -1743,6 +1906,81 @@ func _rebuild_stats() -> void:
 		var cs := _ship_cross_section()
 		_stat_box.add_child(_stat_line("Gate fit", "%d×%d  %s" % [cs.width, cs.decks, "✓" if cs.fits else "✗"],
 			config.status_ok_color if cs.fits else config.status_error_color))
+
+
+func _update_gauges() -> void:
+	if _pwr_gauge == null:
+		return
+	_set_gauge(_pwr_gauge, _results.get("power", {}), config.power_color)
+	_set_gauge(_heat_gauge, _results.get("heat", {}), config.heat_color)
+
+
+func _set_gauge(g: RadialGauge, res: Dictionary, col: Color) -> void:
+	if res.is_empty():
+		g.set_reading(0.0, "--", col)
+		return
+	var demand: float = res.get("demand", 0.0)
+	var supply: float = res.get("supply", 0.0)
+	var frac := (demand / supply) if supply > 0.0 else (1.0 if demand > 0.0 else 0.0)
+	var ok: bool = res.get("ok", true)
+	g.set_reading(clampf(frac, 0.0, 1.0), "%d%%" % roundi(frac * 100.0), col if ok else config.status_error_color)
+
+
+func _update_telemetry() -> void:
+	if _tele_rows.is_empty():
+		return
+	var p: Dictionary = _results.get("power", {})
+	var h: Dictionary = _results.get("heat", {})
+	var pm := float(p.get("supply", 0.0)) - float(p.get("demand", 0.0))
+	var hm := float(h.get("supply", 0.0)) - float(h.get("demand", 0.0))
+	# Bust = the network can't meet demand. Colour the readout coral so it's unmissable.
+	_settle_margin("pm", pm, "MW", config.ui_accent_cool if bool(p.get("ok", true)) else config.status_error_color)
+	_settle_margin("hm", hm, "kW", config.ui_accent_cool if bool(h.get("ok", true)) else config.status_error_color)
+	_tele_rows["parts"].text = str(_count_modules())
+	_tele_rows["cells"].text = str(_hull_cell_count())
+	var cost := _model.total_cost()
+	var over_budget := contract != null and cost > contract.budget
+	_tele_rows["budget"].text = "¤%s" % _money(cost)
+	_tele_rows["budget"].modulate = config.status_error_color if over_budget else config.ui_accent_cool
+
+
+func _settle_margin(id: String, target: float, unit: String, col: Color) -> void:
+	# Show the real margin; ease to it when it actually changes (no idle jitter) so
+	# motion means "a calculation happened", never decoration.
+	var lbl: Label = _tele_rows[id]
+	lbl.modulate = col
+	var from: float = _tele_disp.get(id, target)
+	_tele_disp[id] = target
+	if _tele_tw.has(id) and _tele_tw[id] != null and _tele_tw[id].is_valid():
+		_tele_tw[id].kill()
+	if is_equal_approx(from, target):
+		lbl.text = "%+.1f %s" % [target, unit]
+		return
+	var tw := create_tween()
+	tw.tween_method(func(v: float): lbl.text = "%+.1f %s" % [v, unit], from, target, 0.3)
+	_tele_tw[id] = tw
+
+
+func _update_wall_ruler() -> void:
+	# Follow the morph handle while a wall is selected; hide otherwise.
+	if _wall_ruler == null:
+		return
+	if _wall_sel.is_empty():
+		_wall_ruler.visible = false
+		return
+	var h = _handle_world_pos()
+	if h == null or _cam.is_position_behind(h):
+		_wall_ruler.visible = false
+		return
+	_wall_ruler.visible = true
+	_wall_ruler.set_state(_cam.unproject_position(h), _selection_morph())
+
+
+func _hull_cell_count() -> int:
+	var n := 0
+	for d in range(_deck_count):
+		n += _model.hull_cells(d).size()
+	return n
 
 
 func _stat_line(label: String, value: String, value_col := Color.WHITE) -> Control:
@@ -1760,26 +1998,41 @@ func _stat_line(label: String, value: String, value_col := Color.WHITE) -> Contr
 
 
 func _rebuild_diagnostics() -> void:
-	if _overlay == "" or not _results.has(_overlay):
+	# With an overlay active, report that network (OK or fault). With NO overlay,
+	# still surface a failing network so a broken build is never silent — but stay
+	# quiet when everything's fine.
+	var net := _overlay
+	if net == "":
+		net = _first_failing_network()
+	if net == "" or not _results.has(net):
 		_diag_bar.visible = false
 		return
-	_diag_bar.visible = true
-	var res: Dictionary = _results[_overlay]
-	var diags: Array = res.diagnostics
+	var diags: Array = _results[net].diagnostics
 	if diags.is_empty():
-		_diag_label.text = "✓  %s network OK" % _network_label(_overlay)
+		_diag_bar.visible = true
+		_diag_label.text = "✓  %s network OK" % _network_label(net)
 		_diag_label.modulate = config.status_ok_color
 		_diag_focus.visible = false
 	else:
+		_diag_bar.visible = true
 		_diag_label.text = "⚠  " + diags[0].text
 		_diag_label.modulate = config.status_error_color
 		_diag_focus.visible = true
+	_diag_focus_net = net
+
+
+func _first_failing_network() -> String:
+	for net in ["power", "heat"]:
+		if _results.has(net) and not _results[net].diagnostics.is_empty():
+			return net
+	return ""
 
 
 func _focus_first_diagnostic() -> void:
-	if not _results.has(_overlay):
+	var net := _diag_focus_net if _diag_focus_net != "" else _overlay
+	if not _results.has(net):
 		return
-	var diags: Array = _results[_overlay].diagnostics
+	var diags: Array = _results[net].diagnostics
 	if diags.is_empty():
 		return
 	var cell: Vector2i = diags[0].cell

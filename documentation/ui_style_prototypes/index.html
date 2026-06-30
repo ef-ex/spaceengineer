@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rigger's Hullworks — UI style prototypes</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Inter", system-ui, sans-serif; min-height: 100vh; background: #11151c; color: #e7edf4; padding: 56px 24px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: 0.01em; }
+  p.sub { color: #8a96a6; margin-top: 8px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 32px; }
+  a.card { display: block; text-decoration: none; color: inherit; border: 1px solid #2a323d; border-radius: 14px; padding: 22px; background: #161b23; transition: 0.15s; }
+  a.card:hover { transform: translateY(-2px); border-color: #46505d; }
+  .swatch { height: 72px; border-radius: 10px; margin-bottom: 16px; }
+  .s1 { background: radial-gradient(120% 100% at 50% 20%, #f7f9fc, #d2dae4); }
+  .s2 { background: radial-gradient(120% 100% at 50% 10%, #131b24, #06080b); box-shadow: inset 0 0 0 1px #233; }
+  .s3 { background: #0c2c57; background-image: linear-gradient(rgba(150,195,245,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(150,195,245,0.16) 1px, transparent 1px); background-size: 18px 18px; }
+  .s4 { background: #07172f; background-image: radial-gradient(circle at 50% 50%, rgba(130,210,255,0.35), transparent 38%), linear-gradient(rgba(130,200,255,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(130,200,255,0.14) 1px, transparent 1px); background-size: 100% 100%, 16px 16px, 16px 16px; box-shadow: inset 0 0 0 1px rgba(130,210,255,0.25); }
+  .num { font-size: 11px; letter-spacing: 0.2em; color: #6f7c8c; text-transform: uppercase; }
+  .name { font-size: 16px; font-weight: 600; margin-top: 4px; }
+  .desc { font-size: 13px; color: #8a96a6; margin-top: 7px; line-height: 1.55; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Rigger&rsquo;s Hullworks &mdash; UI style prototypes</h1>
+    <p class="sub">Same designer, same layout, three skins. Open each full-screen and see which one talks to you.</p>
+    <div class="grid">
+      <a class="card" href="01_showroom.html">
+        <div class="swatch s1"></div>
+        <div class="num">Skin 01</div>
+        <div class="name">Showroom</div>
+        <div class="desc">Light, premium, calm. Frosted-white glass, one warm accent, lots of air. The car-configurator read.</div>
+      </a>
+      <a class="card" href="02_cockpit.html">
+        <div class="swatch s2"></div>
+        <div class="num">Skin 02</div>
+        <div class="name">Cockpit</div>
+        <div class="desc">Near-black glass with a single ice-cyan glow. Hypercar digital dash &mdash; restrained, not neon.</div>
+      </a>
+      <a class="card" href="03_blueprint.html">
+        <div class="swatch s3"></div>
+        <div class="num">Skin 03</div>
+        <div class="name">Blueprint</div>
+        <div class="desc">Cyanotype drafting instrument. Fine technical lines, mono type, measurement ticks, amber callouts.</div>
+      </a>
+      <a class="card" href="04_hardlight.html">
+        <div class="swatch s4"></div>
+        <div class="num">Skin 04 &middot; animated</div>
+        <div class="name">Hard-Light HUD</div>
+        <div class="desc">Blueprint pushed into cinematic FUI. Holographic ship, rotating analysis reticle, sweeping scanline, live telemetry, radial gauges. Maximalist on purpose &mdash; the "too much" reference.</div>
+      </a>
+      <a class="card" href="05_workbench.html">
+        <div class="swatch s4"></div>
+        <div class="num">Skin 05 &middot; animated &middot; current</div>
+        <div class="name">Workbench</div>
+        <div class="desc">The working-intensity build. Keeps the radial gauges, panel corner brackets and live telemetry; drops the scanline and reticle; the ruler now appears only on mesh selection (shown mid wall-morph).</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

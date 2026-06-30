@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rigger's Hullworks — Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --accent: #37e0ea; --accent-dim: #1b8f97;
+    --txt: #dfeaf0; --txt2: #8ea2af; --txt3: #5d6f7c;
+    --line: rgba(120, 145, 165, 0.16);
+    --line2: rgba(120, 145, 165, 0.28);
+    --glass: rgba(16, 22, 29, 0.62);
+    --r: 13px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Space Grotesk", system-ui, sans-serif; color: var(--txt); overflow: hidden;
+    background:
+      radial-gradient(130% 100% at 50% 8%, #131b24 0%, #0a0e13 60%, #06080b 100%);
+  }
+  body::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; opacity: 0.5;
+    background-image: repeating-linear-gradient(115deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 9px);
+  }
+  .stage { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  .mono { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .panel {
+    background: var(--glass); border: 1px solid var(--line);
+    border-radius: var(--r);
+    backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .div { height: 1px; background: var(--line); margin: 13px 0; }
+  .lbl { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--txt3); margin-bottom: 8px; }
+
+  .topleft { position: absolute; top: 19px; left: 22px; z-index: 4; display: flex; align-items: center; gap: 15px; }
+  .menu { width: 40px; height: 40px; display: grid; place-items: center; font-size: 16px; color: var(--txt); cursor: pointer; border-radius: 11px; }
+  .wordmark { font-size: 11.5px; letter-spacing: 0.26em; color: var(--txt2); }
+  .wordmark b { color: var(--txt); font-weight: 500; }
+  .wordmark b::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 9px var(--accent); vertical-align: middle; }
+
+  .rail { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; gap: 2px; padding: 4px; }
+  .seg { padding: 9px 22px; border-radius: 9px; font-size: 12.5px; color: var(--txt2); cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; transition: 0.15s; }
+  .seg:hover { color: var(--txt); }
+  .seg.active { color: #06121a; background: var(--accent); box-shadow: 0 0 18px rgba(55, 224, 234, 0.45); font-weight: 500; }
+
+  .info { position: absolute; top: 18px; right: 22px; z-index: 4; width: 274px; padding: 16px 18px; }
+  .ctitle { font-size: 14.5px; font-weight: 500; letter-spacing: 0.01em; }
+  .csub { font-size: 12px; color: var(--txt2); margin-top: 4px; letter-spacing: 0.04em; }
+  .segsm { display: flex; gap: 4px; }
+  .segsm .s { flex: 1; text-align: center; padding: 7px 0; font-size: 11.5px; border-radius: 8px; color: var(--txt2); cursor: pointer; border: 1px solid var(--line2); letter-spacing: 0.03em; }
+  .segsm .s.active { background: rgba(55, 224, 234, 0.12); color: var(--accent); border-color: var(--accent-dim); }
+  .stats { display: grid; gap: 10px; }
+  .stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+  .stat span { color: var(--txt2); letter-spacing: 0.03em; }
+  .stat b { font-weight: 500; font-size: 13px; }
+  .diag { display: flex; align-items: center; gap: 9px; margin-top: 13px; font-size: 12px; color: var(--txt); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #f0a93a; box-shadow: 0 0 9px rgba(240, 169, 58, 0.8); }
+  .focus { margin-left: auto; font: inherit; font-size: 11px; padding: 5px 11px; border-radius: 7px; border: 1px solid var(--line2); background: transparent; color: var(--txt2); cursor: pointer; }
+  .deliver { width: 100%; margin-top: 15px; padding: 12px; border: 1px solid var(--accent-dim); border-radius: 10px; background: rgba(55, 224, 234, 0.10); color: var(--accent); font: inherit; font-weight: 500; font-size: 13.5px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; box-shadow: inset 0 0 22px rgba(55, 224, 234, 0.12); }
+
+  .build { position: absolute; bottom: 20px; left: 22px; z-index: 4; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .phaselbl { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--txt3); }
+  .chips, .palette, .ctrls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .chip { padding: 8px 15px; border-radius: 8px; font-size: 12.5px; color: var(--txt); background: rgba(255,255,255,0.03); border: 1px solid var(--line2); cursor: pointer; letter-spacing: 0.02em; }
+  .chip.ghost { background: transparent; color: var(--txt2); }
+  .chip.active { background: var(--accent); color: #06121a; border-color: transparent; box-shadow: 0 0 16px rgba(55, 224, 234, 0.4); font-weight: 500; }
+  .sep { width: 1px; height: 22px; background: var(--line2); margin: 0 3px; }
+  .pchip { padding: 8px 13px; border-radius: 8px; font-size: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--line2); cursor: pointer; }
+  .pchip i { color: var(--txt3); font-style: normal; margin-left: 6px; font-family: "IBM Plex Mono", monospace; }
+  .pchip.active { border-color: var(--accent-dim); color: var(--accent); }
+  .pchip.active i { color: var(--accent); }
+  .rot { font-size: 12px; color: var(--txt2); padding: 8px 12px; cursor: pointer; }
+  .ctrls { color: var(--txt2); font-size: 12px; }
+  .toggle { padding: 7px 12px; border-radius: 7px; border: 1px solid var(--line2); cursor: pointer; letter-spacing: 0.03em; }
+  .toggle.on { background: rgba(55, 224, 234, 0.12); color: var(--accent); border-color: var(--accent-dim); }
+  .mini { padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+  .mini:hover { background: rgba(255,255,255,0.05); }
+  .spacer { flex: 1 1 12px; }
+  .deck { display: inline-flex; align-items: center; gap: 9px; padding: 6px 11px; border-radius: 7px; border: 1px solid var(--line2); }
+  .deck b { font-weight: 500; color: var(--txt); }
+
+  .hint { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 4; font-size: 11.5px; color: var(--txt2); padding: 8px 18px; border-radius: 20px; letter-spacing: 0.04em; }
+  .skinname { position: fixed; bottom: 22px; right: 24px; z-index: 4; font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--txt3); }
+</style>
+</head>
+<body>
+  <svg class="stage" id="stage"></svg>
+
+  <div class="topleft">
+    <div class="menu panel">&#9776;</div>
+    <div class="wordmark">RIGGER&rsquo;S&nbsp; <b>HULLWORKS</b></div>
+  </div>
+
+  <div class="rail panel">
+    <div class="seg">Shape</div>
+    <div class="seg">Structure</div>
+    <div class="seg active">Systems</div>
+    <div class="seg">Decorate</div>
+  </div>
+
+  <div class="info panel">
+    <div class="ctitle">Hauler reclass &mdash; Vesta Logistics</div>
+    <div class="csub mono">GATE 6&times;4 &nbsp;&middot;&nbsp; BUDGET &curren;48,000</div>
+    <div class="div"></div>
+    <div class="lbl">Overlay</div>
+    <div class="segsm">
+      <span class="s active">None</span><span class="s">&#9889; Power</span><span class="s">&#9832; Heat</span>
+    </div>
+    <div class="div"></div>
+    <div class="stats">
+      <div class="stat"><span>Power draw</span><b class="mono">12.4 / 16.0 kW</b></div>
+      <div class="stat"><span>Heat load</span><b class="mono">&minus;2 vents</b></div>
+      <div class="stat"><span>Hull mass</span><b class="mono">84 t</b></div>
+      <div class="stat"><span>Cells</span><b class="mono">142</b></div>
+    </div>
+    <div class="diag"><span class="dot"></span>2 modules unpowered<button class="focus">Focus</button></div>
+    <button class="deliver">Deliver &#9656;</button>
+  </div>
+
+  <div class="build panel">
+    <div class="phaselbl">Systems &middot; place</div>
+    <div class="chips">
+      <span class="chip ghost">Select</span><span class="chip ghost">Delete</span>
+      <span class="sep"></span>
+      <span class="chip">Rooms</span><span class="chip">Doors</span><span class="chip active">Equipment</span><span class="chip">Route</span><span class="chip">Riser</span>
+    </div>
+    <div class="palette">
+      <span class="pchip active">Reactor <i>&curren;8,000</i></span>
+      <span class="pchip">Battery <i>&curren;2,400</i></span>
+      <span class="pchip">Radiator <i>&curren;1,800</i></span>
+      <span class="pchip">Thruster <i>&curren;5,200</i></span>
+      <span class="rot">&#10227; Rotate</span>
+    </div>
+    <div class="ctrls">
+      <span class="toggle on">Mirror</span>
+      <span class="mini">Undo</span><span class="mini">Redo</span><span class="mini">Clear</span>
+      <span class="spacer"></span>
+      <span class="deck">&#9660;<b>Deck 1</b>&#9650;</span>
+      <span class="toggle">Full</span><span class="toggle">Gate</span>
+    </div>
+  </div>
+
+  <div class="hint panel">Click to place &nbsp;&middot;&nbsp; R rotate &nbsp;&middot;&nbsp; C clone</div>
+  <div class="skinname">Skin 02 &mdash; Cockpit</div>
+
+  <script src="iso.js"></script>
+  <script>
+    drawShip(document.getElementById("stage"), {
+      hullFill: "#19222d", hullStroke: "#2b3a49",
+      rooms: {
+        quarters: { fill: "rgba(95,150,180,0.12)", stroke: "rgba(120,195,225,0.45)" },
+        cargo:    { fill: "rgba(120,140,170,0.09)", stroke: "rgba(150,180,210,0.38)" },
+        bridge:   { fill: "rgba(55,224,234,0.14)",  stroke: "rgba(90,235,245,0.7)" },
+        _:        { fill: "rgba(95,150,180,0.12)",  stroke: "rgba(120,195,225,0.45)" },
+      },
+      equip: {
+        reactor: { top: "#1c7079", left: "#0b383d", right: "#13565d", edge: "#37e0ea" },
+        _:       { top: "#2a3744", left: "#141d26", right: "#1f2a35", edge: "#41525f" },
+      },
+      arrow: "rgba(55,224,234,0.42)", arrowStroke: "none",
+      fwdText: "#5fe0ea", roomLabel: "rgba(190,215,228,0.85)", equipLabel: "rgba(205,228,238,0.9)",
+      labelHalo: "rgba(5,9,13,0.85)", labelFont: "'Space Grotesk',sans-serif",
+    });
+  </script>
+</body>
+</html>

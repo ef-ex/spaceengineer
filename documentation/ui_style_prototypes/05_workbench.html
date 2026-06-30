@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rigger's Hullworks — Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #07172f;
+    --cyan: #c8ecff; --cyan2: #6fd2ff; --cyan-dim: #4f86b8;
+    --line: rgba(130, 200, 255, 0.18); --line2: rgba(130, 200, 255, 0.40);
+    --amber: #ffcf7a; --heat: #ff7a4d; --good: #6fe6c4;
+    --txt: #dcefff; --txt2: #8fb6dc; --txt3: #5d83ad;
+    --panel: rgba(9, 30, 60, 0.74);
+    --mono: "IBM Plex Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: "IBM Plex Sans", system-ui, sans-serif; color: var(--txt); overflow: hidden; background: var(--bg); }
+  /* quiet workspace grid + gentle edge vignette */
+  body::before {
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(130,200,255,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(130,200,255,0.07) 1px, transparent 1px),
+      linear-gradient(rgba(130,200,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(130,200,255,0.035) 1px, transparent 1px);
+    background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  }
+  body::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(125% 100% at 50% 46%, transparent 48%, rgba(3, 10, 22, 0.5) 100%); }
+  .stage { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; filter: drop-shadow(0 0 1px rgba(140, 210, 255, 0.4)); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* one-shot boot sweep (runs once, then gone) */
+  .boot { position: fixed; left: 0; right: 0; height: 2px; z-index: 6; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(120, 220, 255, 0.5) 50%, transparent);
+    box-shadow: 0 0 16px rgba(120, 220, 255, 0.45); animation: boot 1.3s ease-out forwards; }
+  @keyframes boot { 0% { top: -2%; opacity: 0; } 8% { opacity: 0.85; } 90% { opacity: 0.85; } 100% { top: 102%; opacity: 0; } }
+
+  .corner { position: fixed; width: 15px; height: 15px; z-index: 6; pointer-events: none; }
+  .corner::before, .corner::after { content: ""; position: absolute; background: var(--line2); }
+  .corner::before { width: 15px; height: 1px; top: 7px; } .corner::after { width: 1px; height: 15px; left: 7px; }
+  .c-tl { top: 22px; left: 22px; } .c-tr { top: 22px; right: 22px; } .c-bl { bottom: 22px; left: 22px; } .c-br { bottom: 22px; right: 22px; }
+
+  /* contextual measurement ruler — appears only because a wall is selected */
+  .measure { position: fixed; top: 46%; left: 50%; transform: translate(-340px, -50%); z-index: 5; pointer-events: none; display: flex; align-items: center; animation: measIn 0.45s ease both; }
+  @keyframes measIn { from { opacity: 0; transform: translate(-352px, -50%); } to { opacity: 1; transform: translate(-340px, -50%); } }
+  .m-cap { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em; color: var(--cyan2); margin-bottom: 8px; }
+  .m-track { position: relative; height: 196px; width: 78px; }
+  .m-rail { position: absolute; left: 22px; top: 0; bottom: 0; width: 1px; background: var(--line2); }
+  .m-ticks { position: absolute; left: 10px; top: 0; bottom: 0; width: 8px;
+    background-image: repeating-linear-gradient(to bottom, var(--line2) 0 1px, transparent 1px 19.5px); }
+  .m-fill { position: absolute; left: 21px; bottom: 0; width: 3px; height: 8%; background: var(--amber); box-shadow: 0 0 8px rgba(255, 207, 122, 0.6); transition: height 0.9s ease; }
+  .m-handle { position: absolute; left: 22px; bottom: 8%; transform: translate(-50%, 50%); transition: bottom 0.9s ease; }
+  .m-handle .dot { display: block; width: 13px; height: 13px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 12px rgba(255, 207, 122, 0.8); border: 2px solid var(--bg); }
+  .m-val { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 12px; color: var(--amber); white-space: nowrap; background: var(--bg); padding: 2px 7px; border: 1px solid rgba(255, 207, 122, 0.4); }
+  .m-end { position: absolute; left: 36px; font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--txt3); }
+  .m-top { top: -4px; } .m-bot { bottom: -4px; }
+  .m-leader { width: 66px; height: 1px; border-top: 1px dashed var(--line2); margin: 0 4px; }
+  .m-sel { position: relative; width: 26px; height: 26px; }
+  .m-sel span { position: absolute; width: 8px; height: 8px; }
+  .m-sel span:nth-child(1) { top: 0; left: 0; border-top: 1.5px solid var(--cyan2); border-left: 1.5px solid var(--cyan2); }
+  .m-sel span:nth-child(2) { top: 0; right: 0; border-top: 1.5px solid var(--cyan2); border-right: 1.5px solid var(--cyan2); }
+  .m-sel span:nth-child(3) { bottom: 0; left: 0; border-bottom: 1.5px solid var(--cyan2); border-left: 1.5px solid var(--cyan2); }
+  .m-sel span:nth-child(4) { bottom: 0; right: 0; border-bottom: 1.5px solid var(--cyan2); border-right: 1.5px solid var(--cyan2); }
+
+  /* panels */
+  .panel { position: relative; background: var(--panel); border: 1px solid var(--line2);
+    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45); }
+  .panel::before, .panel::after { content: ""; position: absolute; width: 11px; height: 11px; pointer-events: none; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--cyan2); border-left: 2px solid var(--cyan2); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--cyan2); border-right: 2px solid var(--cyan2); }
+  .ptag { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--txt3); }
+  .div { height: 1px; background: var(--line); margin: 12px 0; }
+
+  .topleft { position: fixed; top: 30px; left: 32px; z-index: 7; display: flex; align-items: center; gap: 15px; }
+  .menu { width: 38px; height: 38px; display: grid; place-items: center; font-size: 15px; color: var(--cyan2); }
+  .wordmark { font-family: var(--mono); font-size: 11px; letter-spacing: 0.24em; color: var(--txt2); }
+  .wordmark b { color: var(--cyan); font-weight: 500; }
+  .wordmark .st { color: var(--good); margin-left: 12px; font-size: 9.5px; }
+
+  .rail { position: fixed; top: 27px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; }
+  .seg { font-family: var(--mono); padding: 11px 24px; font-size: 11.5px; color: var(--txt2); letter-spacing: 0.16em; text-transform: uppercase; border-right: 1px solid var(--line); display: flex; gap: 10px; align-items: center; cursor: pointer; }
+  .seg:last-child { border-right: none; }
+  .seg .n { color: var(--txt3); font-size: 9.5px; }
+  .seg:hover { color: var(--cyan); }
+  .seg.active { color: #06223e; background: var(--amber); font-weight: 500; }
+  .seg.active .n { color: rgba(6, 34, 62, 0.55); }
+
+  .rightcol { position: fixed; top: 30px; right: 30px; z-index: 7; width: 296px; display: flex; flex-direction: column; gap: 14px; }
+  .info { padding: 15px 16px; }
+  .ihead { display: flex; justify-content: space-between; align-items: center; }
+  .ctitle { font-size: 14px; font-weight: 500; color: var(--cyan); margin-top: 8px; }
+  .csub { font-family: var(--mono); font-size: 11px; color: var(--txt2); margin-top: 5px; letter-spacing: 0.05em; }
+  .gauges { display: flex; gap: 12px; margin: 14px 0 2px; }
+  .gauge { flex: 1; text-align: center; }
+  .gauge svg { width: 100%; height: auto; display: block; }
+  .gauge .gv { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; color: var(--txt2); text-transform: uppercase; margin-top: 4px; }
+  .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--txt3); margin-bottom: 8px; }
+  .segsm { display: flex; border: 1px solid var(--line); }
+  .segsm .s { flex: 1; text-align: center; padding: 8px 0; font-family: var(--mono); font-size: 11px; color: var(--txt2); cursor: pointer; border-right: 1px solid var(--line); letter-spacing: 0.05em; }
+  .segsm .s:last-child { border-right: none; }
+  .segsm .s.active { background: rgba(130, 200, 255, 0.14); color: var(--cyan); }
+  .diag { display: flex; align-items: center; gap: 9px; margin-top: 13px; font-size: 11.5px; color: var(--amber); }
+  .diag .b { width: 6px; height: 6px; background: var(--amber); transform: rotate(45deg); box-shadow: 0 0 8px var(--amber); }
+  .focus { margin-left: auto; font-family: var(--mono); font-size: 10px; padding: 5px 11px; border: 1px solid var(--line2); background: transparent; color: var(--txt2); cursor: pointer; letter-spacing: 0.08em; }
+  .deliver { width: 100%; margin-top: 14px; padding: 13px; border: 1px solid var(--amber); background: rgba(255, 207, 122, 0.10); color: var(--amber); font-family: var(--mono); font-weight: 500; font-size: 12.5px; letter-spacing: 0.16em; text-transform: uppercase; cursor: pointer; }
+
+  .telemetry { padding: 13px 15px; }
+  .trow { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+  .trow:last-child { border-bottom: none; }
+  .trow .tk { color: var(--txt3); letter-spacing: 0.08em; flex: 1; }
+  .trow .tv { color: var(--cyan); text-align: right; min-width: 66px; }
+  .trow.warn .tv { color: var(--amber); }
+  .trow .tbar { width: 32px; height: 4px; background: rgba(130, 200, 255, 0.14); position: relative; }
+  .trow .tbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cyan2); box-shadow: 0 0 6px var(--cyan2); transition: width 0.7s ease; }
+
+  .build { position: fixed; bottom: 30px; left: 30px; z-index: 7; padding: 14px 15px; display: flex; flex-direction: column; gap: 11px; }
+  .phaselbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--txt3); }
+  .chips, .palette, .ctrls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 8px 14px; font-size: 12px; color: var(--txt); background: transparent; border: 1px solid var(--line2); cursor: pointer; letter-spacing: 0.03em; }
+  .chip.ghost { color: var(--txt2); border-style: dashed; }
+  .chip.active { background: rgba(130, 200, 255, 0.16); color: var(--cyan); border-color: var(--cyan-dim); box-shadow: inset 0 0 16px rgba(130, 200, 255, 0.10); }
+  .sep { width: 1px; height: 22px; background: var(--line2); margin: 0 4px; }
+  .wlab { font-family: var(--mono); font-size: 10px; color: var(--txt3); letter-spacing: 0.14em; margin-right: 2px; }
+  .pchip { padding: 8px 12px; font-family: var(--mono); font-size: 11px; background: transparent; border: 1px solid var(--line); cursor: pointer; }
+  .pchip.active { border-color: var(--cyan-dim); color: var(--cyan); background: rgba(130, 200, 255, 0.10); }
+  .pchip.off { color: var(--txt3); border-style: dashed; opacity: 0.65; cursor: default; }
+  .ctrls { color: var(--txt2); font-family: var(--mono); font-size: 11px; }
+  .toggle { padding: 7px 12px; border: 1px solid var(--line2); cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; }
+  .toggle.on { background: rgba(130, 200, 255, 0.14); color: var(--cyan); border-color: var(--cyan-dim); }
+  .miniBtn { padding: 7px 10px; cursor: pointer; }
+  .miniBtn:hover { background: rgba(130, 200, 255, 0.08); }
+  .spacer { flex: 1 1 12px; }
+  .deck { display: inline-flex; align-items: center; gap: 9px; padding: 6px 11px; border: 1px solid var(--line2); }
+  .deck b { color: var(--cyan); }
+
+  .hint { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); z-index: 7; font-family: var(--mono); font-size: 11px; color: var(--txt2); padding: 8px 18px; letter-spacing: 0.06em; }
+  .skinname { position: fixed; bottom: 30px; right: 34px; z-index: 7; font-family: var(--mono); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--txt3); }
+</style>
+</head>
+<body>
+  <svg class="stage" id="stage"></svg>
+  <div class="boot"></div>
+
+  <div class="corner c-tl"></div><div class="corner c-tr"></div><div class="corner c-bl"></div><div class="corner c-br"></div>
+
+  <!-- contextual measurement ruler: only because a wall is selected -->
+  <div class="measure">
+    <div>
+      <div class="m-cap">WALL 1 &middot; MORPH</div>
+      <div class="m-track">
+        <div class="m-ticks"></div>
+        <div class="m-rail"></div>
+        <div class="m-fill" id="mFill"></div>
+        <div class="m-handle" id="mHandle"><span class="dot"></span><span class="m-val" id="mVal">0.08 m</span></div>
+        <div class="m-end m-top">THICK</div>
+        <div class="m-end m-bot">FLAT</div>
+      </div>
+    </div>
+    <div class="m-leader"></div>
+    <div class="m-sel"><span></span><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="topleft">
+    <div class="menu panel">&#9776;</div>
+    <div class="wordmark">RIGGER&rsquo;S&nbsp; <b>HULLWORKS</b> <span class="st">&#9679; LINK NOMINAL</span></div>
+  </div>
+
+  <div class="rail panel">
+    <div class="seg"><span class="n">01</span>Shape</div>
+    <div class="seg active"><span class="n">02</span>Structure</div>
+    <div class="seg"><span class="n">03</span>Systems</div>
+    <div class="seg"><span class="n">04</span>Decorate</div>
+  </div>
+
+  <div class="rightcol">
+    <div class="info panel">
+      <div class="ihead"><span class="ptag">Contract</span><span class="ptag">VL&middot;0734</span></div>
+      <div class="ctitle">Hauler reclass &mdash; Vesta Logistics</div>
+      <div class="csub">GATE 6&times;4 &nbsp;&middot;&nbsp; BUDGET &curren;48,000</div>
+
+      <div class="gauges">
+        <div class="gauge">
+          <svg viewBox="0 0 100 110">
+            <g style="transform-box:fill-box;transform-origin:50px 50px;animation:spin 24s linear infinite;">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,207,122,0.26)" stroke-width="1" stroke-dasharray="1 6" />
+            </g>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,207,122,0.14)" stroke-width="6" />
+            <circle id="pwrArc" cx="50" cy="50" r="40" fill="none" stroke="#ffcf7a" stroke-width="6" stroke-linecap="round"
+              stroke-dasharray="251.3" stroke-dashoffset="251.3" transform="rotate(-90 50 50)" style="transition:stroke-dashoffset 1.3s ease;filter:drop-shadow(0 0 3px rgba(255,207,122,0.55))" />
+            <text id="pwrPct" x="50" y="48" text-anchor="middle" font-family="IBM Plex Mono" font-size="20" font-weight="500" fill="#ffcf7a">0%</text>
+            <text x="50" y="62" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="#8fb6dc" letter-spacing="1">12.4 kW</text>
+          </svg>
+          <div class="gv">Power</div>
+        </div>
+        <div class="gauge">
+          <svg viewBox="0 0 100 110">
+            <g style="transform-box:fill-box;transform-origin:50px 50px;animation:spin 28s linear infinite reverse;">
+              <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,122,77,0.24)" stroke-width="1" stroke-dasharray="1 6" />
+            </g>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,122,77,0.14)" stroke-width="6" />
+            <circle id="heatArc" cx="50" cy="50" r="40" fill="none" stroke="#ff7a4d" stroke-width="6" stroke-linecap="round"
+              stroke-dasharray="251.3" stroke-dashoffset="251.3" transform="rotate(-90 50 50)" style="transition:stroke-dashoffset 1.3s ease;filter:drop-shadow(0 0 3px rgba(255,122,77,0.55))" />
+            <text id="heatPct" x="50" y="48" text-anchor="middle" font-family="IBM Plex Mono" font-size="20" font-weight="500" fill="#ff7a4d">0%</text>
+            <text x="50" y="62" text-anchor="middle" font-family="IBM Plex Mono" font-size="8" fill="#8fb6dc" letter-spacing="1">&minus;2 VENT</text>
+          </svg>
+          <div class="gv">Heat</div>
+        </div>
+      </div>
+
+      <div class="div"></div>
+      <div class="lbl">Overlay</div>
+      <div class="segsm"><span class="s active">None</span><span class="s">Power</span><span class="s">Heat</span></div>
+
+      <div class="diag"><span class="b"></span>2 modules unpowered<button class="focus">Focus</button></div>
+      <button class="deliver">Deliver &#9656;</button>
+    </div>
+
+    <div class="telemetry panel">
+      <div class="ptag" style="margin-bottom:9px">Telemetry &middot; live</div>
+      <div class="trow"><span class="tk">POWER MARGIN</span><span class="tbar"><i style="width:62%"></i></span><span class="tv" id="t1">+3.6 kW</span></div>
+      <div class="trow warn"><span class="tk">HEAT LOAD</span><span class="tbar"><i style="width:64%;background:#ff7a4d;box-shadow:0 0 6px #ff7a4d"></i></span><span class="tv" id="t2">64%</span></div>
+      <div class="trow"><span class="tk">HULL MASS</span><span class="tbar"><i style="width:52%"></i></span><span class="tv">84.0 t</span></div>
+      <div class="trow"><span class="tk">CELL COUNT</span><span class="tbar"><i style="width:71%"></i></span><span class="tv">142</span></div>
+      <div class="trow"><span class="tk">BUDGET USE</span><span class="tbar"><i style="width:65%"></i></span><span class="tv">&curren;31.2k</span></div>
+    </div>
+  </div>
+
+  <div class="build panel">
+    <div class="phaselbl">Structure &middot; walls</div>
+    <div class="chips">
+      <span class="chip active">Select</span><span class="chip ghost">Delete</span>
+    </div>
+    <div class="palette">
+      <span class="wlab">WALL</span>
+      <span class="pchip active">Wall 1</span>
+      <span class="pchip">Wall 2</span>
+      <span class="pchip off">Corner</span>
+      <span class="pchip off">Custom&hellip;</span>
+    </div>
+    <div class="ctrls">
+      <span class="toggle on">Mirror</span>
+      <span class="miniBtn">Undo</span><span class="miniBtn">Redo</span><span class="miniBtn">Clear</span>
+      <span class="spacer"></span>
+      <span class="deck">&#9660;<b>Deck 1</b>&#9650;</span>
+      <span class="toggle">Full</span><span class="toggle">Gate</span>
+    </div>
+  </div>
+
+  <div class="hint panel">Select a wall &nbsp;&middot;&nbsp; drag the handle to morph flat &harr; thick</div>
+  <div class="skinname">Skin 05 &mdash; Workbench (working intensity)</div>
+
+  <script src="iso.js"></script>
+  <script>
+    drawShip(document.getElementById("stage"), {
+      hullFill: "#2a3f59", hullStroke: "rgba(150,205,255,0.42)",
+      rooms: {
+        quarters: { fill: "#33506e", stroke: "rgba(170,215,255,0.5)" },
+        cargo:    { fill: "#2f4258", stroke: "rgba(170,215,255,0.42)" },
+        bridge:   { fill: "#5b4a2c", stroke: "rgba(255,210,130,0.6)" },
+        _:        { fill: "#33506e", stroke: "rgba(170,215,255,0.5)" },
+      },
+      equip: {
+        reactor: { top: "#e0a23a", left: "#9c6e1f", right: "#bd8a2c", edge: "rgba(255,215,140,0.85)" },
+        _:       { top: "#3f6286", left: "#274058", right: "#33506e", edge: "rgba(170,220,255,0.7)" },
+      },
+      arrow: "rgba(140,225,255,0.20)", arrowStroke: "rgba(150,230,255,0.8)", arrowSw: 1.2,
+      fwdText: "rgba(150,230,255,0.9)", roomLabel: "rgba(220,240,255,0.95)", equipLabel: "rgba(220,240,255,0.92)",
+      labelHalo: "rgba(7,23,47,0.85)", labelFont: "'IBM Plex Mono',monospace",
+    });
+
+    const C = 251.3;
+    const setArc = (id, pct) => { document.getElementById(id).style.strokeDashoffset = (C * (1 - pct / 100)).toFixed(1); };
+    const countUp = (id, target, suf) => {
+      let v = 0; const step = target / 24;
+      const t = setInterval(() => { v += step; if (v >= target) { v = target; clearInterval(t); } document.getElementById(id).textContent = Math.round(v) + suf; }, 34);
+    };
+    setTimeout(() => { setArc("pwrArc", 78); setArc("heatArc", 64); countUp("pwrPct", 78, "%"); countUp("heatPct", 64, "%"); }, 250);
+
+    // contextual ruler: settle from flat -> selected thickness, once
+    setTimeout(() => {
+      document.getElementById("mFill").style.height = "62%";
+      document.getElementById("mHandle").style.bottom = "62%";
+      let v = 0.08; const t = setInterval(() => { v += 0.02; if (v >= 0.40) { v = 0.40; clearInterval(t); } document.getElementById("mVal").textContent = v.toFixed(2) + " m"; }, 38);
+    }, 450);
+
+    // real-ish readouts that wander within tolerance (the rest are discrete -> stable)
+    setInterval(() => {
+      const pm = 3.6 + (Math.random() - 0.5) * 0.18;
+      const hl = 64 + (Math.random() - 0.5) * 1.4;
+      document.getElementById("t1").textContent = "+" + pm.toFixed(1) + " kW";
+      document.getElementById("t2").textContent = Math.round(hl) + "%";
+    }, 800);
+  </script>
+  <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+</body>
+</html>

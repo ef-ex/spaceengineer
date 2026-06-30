@@ -268,3 +268,82 @@ Sources: [Tiny Glade dev interview (80.lv)](https://80.lv/articles/exclusive-tin
 [Sims 4 hotkeys](https://simscommunity.info/2022/01/24/the-sims-4-build-buy-hotkey-guide/),
 [NN/g modal vs modeless](https://www.nngroup.com/articles/modal-nonmodal-dialog/),
 [Pie menus / Callahan CHI'88](https://en.wikipedia.org/wiki/Pie_menu).
+
+---
+
+## Visual language & telemetry legibility — the FUI research (research 2026-06-30)
+
+> The two surveys above optimised **network routing** and **build/edit feel**. This one targets the
+> question the locked UI skin raises: *how much technical "instrument" chrome is right, and how do we
+> keep a dense FUI legible?* The locked look is **"Skin 05 — Workbench"** (clean technical sci-fi
+> FUI, "a smart technician at a holo-rig," restrained working intensity — prototypes in
+> `ui_style_prototypes/`, being ported into `designer.gd`'s theme). This section is the *why* behind
+> keeping that restraint; the visual spec lives with the prototypes + theme. Re-surveyed six close
+> comparables specifically for **aesthetic intensity, live-telemetry presentation, and validation
+> legibility** (the earlier table mined the same games for routing/interaction — not repeated here).
+
+### The one universal finding: every failure is a *legibility* failure, never "too plain"
+Across all six games, **every recurring UI complaint is a feedback/legibility failure — not one is
+"not enough visual richness."** Cosmoteer's buried depth, Reassembly's silent disconnects, KSP's
+distrusted numbers, Space Engineers' buried-behind-a-tab telemetry. **Strategic implication:** keep
+the instrument look restrained (hold the Skin-05 cut-list), and spend the saved complexity budget on
+**live, per-phase, legible feedback** — the thing these games actually got wrong.
+
+### Aesthetic intensity: the genre winner is *flatter* than us
+- **Cosmoteer is flat, NOT diegetic** — a "spacey blue-and-green" flat-panel UI; the sci-fi flavor is
+  in the *copy* ("MAKE IT SO" to commit), not skeuomorphic instruments. It's the most successful game
+  in our exact genre (94% / 7,500+ reviews), and its UI is *less* instrument-heavy than Workbench.
+- **Highfleet** is the celebrated diegetic-FUI counter-example — dev: the interface is *"a small
+  museum where you are allowed to touch and twist everything,"* immersion deliberately chosen over
+  convenience. **But it pays a documented onboarding tax** (dev admits the tutorial needed to be ~2×
+  longer). That tax compounds faster in a *building tool used for hours* than in Highfleet's
+  tense-moment loop.
+- **Verdict:** Skin-05's restraint is the right call — keep the instrument *soul* (brackets, mono
+  readouts, live gauges), refuse the instrument *friction* (the already-cut scanline/reticle/callouts
+  are exactly the Highfleet lesson). Going hotter than Cosmoteer is going *beyond* the genre winner;
+  do it only where it buys legibility, never decoration.
+
+### Live, per-phase telemetry is the biggest unmet need (three independent votes)
+- **KSP**: no stock delta-v for years → *everyone* installed Kerbal Engineer Redux; KSP2's loudest
+  editor gripe is whole-craft-only TWR. **Per-stage** readouts that update live were the fix.
+- **Space Engineers**: mass/PCU/power sit behind the `K` Info tab with no live update, no colour, no
+  warnings — players stop building to go hunt numbers. Its single biggest miss.
+- **Cosmoteer**: ships an **individually-toggleable right-rail metric stack** + cost-under-cursor +
+  "nearest power/crew source + distance" path hint *at placement time*. The KER-style
+  **docked, collapsible, field-customizable** panel is the converged template.
+- **[PROTOTYPE] implication:** our right-column telemetry + the overlay shell (the "one big idea"
+  above) should present **per-phase** power/heat/mass that updates as the ghost moves, flashing
+  amber/coral the instant a placement busts a budget — and let the player toggle which metrics show.
+  This is the same overlay-per-network spine already specced; this research just adds *make it live,
+  per-phase, and toggleable*, and *show the gauge before the failure state* (Cosmoteer's heat had "no
+  visualization until you've got fire everywhere" — the explicit anti-pattern).
+
+### Validation & selection legibility (reinforces "click-to-focus + spatial pulse")
+- **Reassembly** lost players' *ships*: parts "appeared connected except, surprise it wasn't," with no
+  save-time warning. **Space Engineers**' top "is it broken?" thread is snapping silently failing
+  after a grid-mode toggle. **KSP**'s "I grabbed the whole subassembly" mis-select frustration.
+- All three are the same root cause and all three reinforce our existing **[PROTOTYPE]** decisions:
+  every diagnostic is **click-to-focus + spatial pulse**, validity is shown in-world (ghost colour +
+  *reason text*, never silent), and the on-object handle must make **"what am I about to grab"**
+  unambiguous *before* the click (ties into the open "selection disambiguation" question for #4).
+
+### Colourblind channel (new requirement)
+- **FTL** moved system labels from words to **symbols** and ships a **separate colourblind icon set**.
+  We encode *state* in colour (amber = active, coral = heat, cyan = ambient). **[PROTOTYPE]** add a
+  redundant non-colour channel (icon/shape/text) so colour is never the only signal.
+
+### Reconciliation note
+Nothing here overturns the surveys above. It **reinforces** them: the overlay-per-network spine
+(live + per-phase + toggleable), the persistent stat strip, click-to-focus diagnostics, and the
+"prefer persistent symmetry axis over Reassembly's one-shot flip" call all stand. One scoping
+data-point added: Reassembly shipped a one-shot flip *because* a true mirror mode was "too costly to
+implement" — a cost flag if our persistent-axis mirror turns out expensive, not a reason to change the
+decision.
+
+Sources (2026-06-30):
+[Highfleet diegetic-UI design (Game Developer)](https://www.gamedeveloper.com/design/designing-i-highfleet-i-a-strategy-game-with-heavy-machinery-and-twirling-knobs),
+[Cosmoteer Ship Editor (wiki)](https://cosmoteer.wiki.gg/wiki/Ship_Editor) + [Settings/metrics](https://cosmoteer.wiki.gg/wiki/Settings) + [0.30.0 toggleable metrics](https://cosmoteer.wiki.gg/wiki/0.30.0) + [heat-feedback thread](https://steamcommunity.com/app/799600/discussions/0/592904149587479586/),
+[KSP2 delta-v/TWR complaints](https://steamcommunity.com/app/954850/discussions/0/3772364949848941430/) + [KER](https://www.curseforge.com/kerbal/ksp-mods/kerbal-engineer-redux),
+[Space Engineers Info Screen](https://spaceengineers.wiki.gg/wiki/Info_Screen) + [UI-complaints thread](https://steamcommunity.com/app/244850/discussions/0/4361248897895086889/) + [silent-snapping thread](https://steamcommunity.com/app/244850/discussions/0/1796278072849000699/),
+[Reassembly editor complaints](https://steamcommunity.com/app/329130/discussions/0/3196993316883024521/) + [mirror-as-flip rationale](https://steamcommunity.com/app/329130/discussions/0/1742226629870830483/),
+[FTL UI (Interface In Game)](https://interfaceingame.com/games/ftl-faster-than-light/).
