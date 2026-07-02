@@ -10,7 +10,6 @@ const DELIVERY_SCENE := "res://scenes/delivery.tscn"
 const UNDO_LIMIT := 64
 const CornerBracketStyleBox := preload("res://scripts/ui/corner_bracket_stylebox.gd")
 const RadialGauge := preload("res://scripts/ui/radial_gauge.gd")
-const WallRuler := preload("res://scripts/ui/wall_ruler.gd")
 
 enum Tool { SELECT, HULL, MODULE, ROUTE, RISER, ROOM, DOOR, WALL, DELETE }
 enum Phase { SHAPE, STRUCTURE, SYSTEMS, DECORATE }
@@ -62,9 +61,12 @@ var _hover: Variant = null
 var _last_cell: Variant = null   # last in-grid cell, so drags off the edge still resolve
 var _hover_edge: Variant = null  # {cell, dir} wall edge under the cursor, for the Doors tool
 var _hover_wall: Variant = null  # {deck, cell, dir} wall under the cursor (raycast), for the Walls tool
-var _wall_handle_drag := false   # dragging the on-object morph handle on the wall selection
+var _wall_handle_drag := false   # dragging a morph arrow on the wall selection
 var _drag_start_mouse := Vector2.ZERO
-var _drag_start_morph := 0.0
+var _drag_start_weight := 0.0
+var _drag_morph_index := 0       # which blend shape / arrow is being dragged
+var _drag_axis := Vector3.UP     # world-space drag axis of the grabbed arrow
+var _drag_invert := false
 
 # UI refs
 var _tool_buttons := {}
@@ -75,7 +77,6 @@ var _route_buttons := {}
 var _route_picker: Control
 var _room_buttons := {}
 var _room_picker: Control
-var _radial: Control               # Tiny-Glade-style radial context menu (Select mode)
 var _phase_buttons := {}           # Phase -> Button (the top phase rail)
 var _phase_rows := {}              # Phase -> HBoxContainer (that phase's tool row)
 var _wall_variant_picker: HBoxContainer   # Structure phase: pick the wall mesh
@@ -92,11 +93,9 @@ var _sb_phase_active: StyleBoxFlat   # amber fill applied to the active phase ta
 var _sb_tool_active: StyleBoxFlat    # cyan fill applied to the active tool
 var _pwr_gauge: RadialGauge
 var _heat_gauge: RadialGauge
-var _tele_rows: Dictionary = {}      # id -> value Label
-var _tele_disp: Dictionary = {}      # id -> displayed margin (source for the settle tween)
-var _tele_tw: Dictionary = {}        # id -> active settle Tween
+var _margin_disp: Dictionary = {}    # "power"/"heat" -> displayed margin (source for the settle tween)
+var _margin_tw: Dictionary = {}      # "power"/"heat" -> active settle Tween
 var _diag_focus_net: String = ""     # network the Focus button targets (may differ from overlay)
-var _wall_ruler: WallRuler           # measurement ruler shown beside a selected wall
 
 
 func _ready() -> void:
@@ -184,11 +183,9 @@ func _build_forward_indicator() -> void:
 	var extent := config.grid_size * config.cell_size
 	var z := extent * 0.5
 	var y := 0.02
-	var x0 := extent + 0.6 * config.cell_size
-	var x1 := extent + 3.2 * config.cell_size
-	var xm := lerpf(x0, x1, 0.6)
-	var ws := 0.5 * config.cell_size   # shaft half-width
-	var wh := 1.4 * config.cell_size   # head half-width
+	var x0 := extent + 0.6 * config.cell_size   # base
+	var x1 := extent + 3.2 * config.cell_size   # tip
+	var wh := 1.3 * config.cell_size            # base half-width
 
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -198,11 +195,8 @@ func _build_forward_indicator() -> void:
 
 	var im := ImmediateMesh.new()
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, mat)
-	# shaft (two triangles)
-	_tri(im, Vector3(x0, y, z - ws), Vector3(xm, y, z - ws), Vector3(xm, y, z + ws))
-	_tri(im, Vector3(x0, y, z - ws), Vector3(xm, y, z + ws), Vector3(x0, y, z + ws))
-	# head
-	_tri(im, Vector3(xm, y, z - wh), Vector3(x1, y, z), Vector3(xm, y, z + wh))
+	# a single solid triangle (arrowhead, no shaft) pointing +X
+	_tri(im, Vector3(x0, y, z - wh), Vector3(x1, y, z), Vector3(x0, y, z + wh))
 	im.surface_end()
 	var mi := MeshInstance3D.new()
 	mi.mesh = im
@@ -253,7 +247,6 @@ func _update_camera() -> void:
 
 
 func _process(delta: float) -> void:
-	_update_wall_ruler()
 	# Free move: WASD pans the view across the ground plane (screen-relative), Q/E
 	# drop/raise it. Orbit (middle-drag) and zoom (wheel) are still in _input.
 	var fwd := -Vector3(sin(_yaw), 0.0, cos(_yaw))   # camera facing, flattened to ground
@@ -355,7 +348,6 @@ func _paint_button(add: bool, event: InputEventMouseButton) -> void:
 		if _tool == Tool.SELECT:
 			if add and _begin_handle_drag(event.position):
 				return   # grabbed the on-object morph handle — drag to scrub flat<->thick
-			_close_radial()   # any new click collapses a stale menu
 			if add:
 				if _wall_at(event.position) != null:
 					_wall_click(event.position, true, Input.is_key_pressed(KEY_SHIFT), Input.is_key_pressed(KEY_CTRL))
@@ -897,7 +889,7 @@ func _update_preview() -> void:
 		elif _hover_wall != null and not _wall_handle_drag:
 			_add_wall_marker(_preview, _hover_wall.cell, _hover_wall.dir, config.ghost_color)
 		if not _wall_sel.is_empty():
-			_draw_wall_handle()   # on-object morph handle replaces the old Edit radial
+			_draw_wall_arrows()   # one arrow per morph, authored per-piece in the Rigger
 		return
 
 	if _tool == Tool.DOOR:
@@ -1005,21 +997,6 @@ func _build_ui() -> void:
 	_ui_theme = _build_theme()
 	root.theme = _ui_theme
 	layer.add_child(root)
-	_wall_ruler = WallRuler.new()
-	_wall_ruler.accent = config.handle_color
-	_wall_ruler.line_col = config.ui_panel_border
-	_wall_ruler.text_col = config.ui_text_primary
-	_wall_ruler.visible = false
-	root.add_child(_wall_ruler)
-
-	# Radial context menu (Tiny-Glade style): pops at a selected element with its
-	# actions; modal while open. Click empty space or right-click to dismiss.
-	_radial = Control.new()
-	_radial.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_radial.mouse_filter = Control.MOUSE_FILTER_IGNORE   # non-modal: only its buttons catch clicks
-	_radial.visible = false
-	_radial.theme = _ui_theme
-	layer.add_child(_radial)
 
 	# --- Top-left: system menu --------------------------------------------------
 	var menu_btn := _button("☰  Menu")
@@ -1042,7 +1019,8 @@ func _build_ui() -> void:
 	_phase_buttons[Phase.SHAPE] = _add_phase(rail, "Shape", Phase.SHAPE)
 	_phase_buttons[Phase.STRUCTURE] = _add_phase(rail, "Structure", Phase.STRUCTURE)
 	_phase_buttons[Phase.SYSTEMS] = _add_phase(rail, "Systems", Phase.SYSTEMS)
-	_phase_buttons[Phase.DECORATE] = _add_phase(rail, "Decorate", Phase.DECORATE)
+	if config.ui_show_planned:
+		_phase_buttons[Phase.DECORATE] = _add_phase(rail, "Decorate", Phase.DECORATE)
 
 	# --- Top-right: information (status / overlays / diagnostics / deliver) ------
 	var rightcol := VBoxContainer.new()
@@ -1124,34 +1102,6 @@ func _build_ui() -> void:
 	deliver.pressed.connect(_deliver)
 	pv.add_child(deliver)
 
-	# Telemetry: real solver-derived readouts, animated within a small tolerance so
-	# the panel reads "live" (the wander is cosmetic; the base value is the truth).
-	var tele_panel := PanelContainer.new()
-	tele_panel.custom_minimum_size = Vector2(252, 0)
-	rightcol.add_child(tele_panel)
-	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 5)
-	tele_panel.add_child(tv)
-	var th := Label.new()
-	th.text = "TELEMETRY · LIVE"
-	th.add_theme_font_size_override("font_size", 11)
-	th.modulate = Color(1, 1, 1, 0.55)
-	tv.add_child(th)
-	for spec in [["PWR MARGIN", "pm"], ["HEAT MARGIN", "hm"], ["PARTS", "parts"], ["HULL CELLS", "cells"], ["BUDGET", "budget"]]:
-		var row := HBoxContainer.new()
-		var k := Label.new()
-		k.text = spec[0]
-		k.modulate = Color(1, 1, 1, 0.5)
-		k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(k)
-		var v := Label.new()
-		v.text = "--"
-		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		v.modulate = config.ui_accent_cool
-		row.add_child(v)
-		tv.add_child(row)
-		_tele_rows[spec[1]] = v
-
 	# --- Bottom-left: build cluster (place + edit) ------------------------------
 	var build_panel := PanelContainer.new()
 	build_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -1214,11 +1164,12 @@ func _build_ui() -> void:
 	wl.modulate = Color(1, 1, 1, 0.6)
 	_wall_variant_picker.add_child(wl)
 	var w1 := _button("Wall 1")
-	w1.tooltip_text = "Select a wall, then drag its handle to morph flat<->thick"
+	w1.tooltip_text = "Select a wall, then drag an arrow to drive its blend shapes"
 	_wall_variant_picker.add_child(w1)
-	_wall_variant_picker.add_child(_placeholder("Wall 2"))
-	_wall_variant_picker.add_child(_placeholder("Corner"))
-	_wall_variant_picker.add_child(_placeholder("Custom…"))
+	if config.ui_show_planned:
+		_wall_variant_picker.add_child(_placeholder("Wall 2"))
+		_wall_variant_picker.add_child(_placeholder("Corner"))
+		_wall_variant_picker.add_child(_placeholder("Custom…"))
 
 	# Core verbs — present in every phase (the universal cursor).
 	var core := HBoxContainer.new()
@@ -1244,15 +1195,16 @@ func _build_ui() -> void:
 	_tool_buttons[Tool.RISER] = _add_tool(sys_row, "Riser", Tool.RISER)
 	_phase_rows[Phase.SYSTEMS] = sys_row
 
-	var dec_row := HBoxContainer.new()
-	dec_row.add_theme_constant_override("separation", 6)
-	build.add_child(dec_row)
-	dec_row.add_child(_placeholder("Props"))
-	dec_row.add_child(_placeholder("Texture"))
-	dec_row.add_child(_placeholder("Paint"))
-	dec_row.add_child(_placeholder("Modeling"))
-	dec_row.add_child(_placeholder("Detail splines"))
-	_phase_rows[Phase.DECORATE] = dec_row
+	if config.ui_show_planned:
+		var dec_row := HBoxContainer.new()
+		dec_row.add_theme_constant_override("separation", 6)
+		build.add_child(dec_row)
+		dec_row.add_child(_placeholder("Props"))
+		dec_row.add_child(_placeholder("Texture"))
+		dec_row.add_child(_placeholder("Paint"))
+		dec_row.add_child(_placeholder("Modeling"))
+		dec_row.add_child(_placeholder("Detail splines"))
+		_phase_rows[Phase.DECORATE] = dec_row
 
 	var opts := HBoxContainer.new()
 	opts.add_theme_constant_override("separation", 6)
@@ -1471,7 +1423,6 @@ func _open_menu() -> void:
 func _set_tool(tool: int) -> void:
 	_tool = tool
 	_phase = _phase_of_tool(tool)   # keyboard tool shortcuts also switch the phase rail
-	_close_radial()
 	_wall_anchor = null
 	if not _wall_sel.is_empty():
 		_wall_sel.clear()
@@ -1600,120 +1551,147 @@ func _wall_run(a: Dictionary, b: Dictionary) -> Dictionary:
 	return out
 
 
-# --- Select mode: on-object morph handle (Tiny-Glade-style direct manipulation) ---
-# Selecting a wall reveals a draggable handle floating off its face; dragging it scrubs
-# the whole selection's flat<->thick morph live. Replaces the old 3-level Edit radial
-# (Edit -> Walls -> Wall 1 -> slider). Feel knobs live in DesignerConfig ("Wall handle").
+# --- Select mode: per-morph ARROWS (authored per piece in Riggers ▸ Rig Piece) ---
+# Selecting a wall reveals one arrow per blend shape, placed + oriented as authored in its WallPiece.
+# Dragging an arrow scrubs THAT blend shape's weight across the whole selection. Feel knobs live in
+# DesignerConfig ("Wall handle").
+
+func _wall_arrows() -> Array:
+	# One entry per (selected wall on the active deck) × (morph in the piece): the arrow's world
+	# position + drag axis, from the wall's placement transform and the authored MorphControl.
+	var out: Array = []
+	var piece := WallMesh.piece()
+	if piece == null:
+		return out
+	for key in _wall_sel:
+		var w: Dictionary = _wall_sel[key]
+		if w.deck != _active_deck:
+			continue
+		var xform := ShipRenderer._wall_xform(w.deck, w.cell, w.dir, config)
+		for i in piece.morphs.size():
+			var mc: MorphControl = piece.morphs[i]
+			out.append({
+				"morph": i,
+				"pos": xform * mc.position,
+				"axis": (xform.basis * mc.direction).normalized(),
+				"invert": mc.invert,
+			})
+	return out
+
 
 func _begin_handle_drag(pos: Vector2) -> bool:
-	# True if the press landed on the selection's morph handle — start a live scrub.
+	# True if the press landed on a morph arrow — start scrubbing that blend shape.
 	if _wall_sel.is_empty():
 		return false
-	var h = _handle_world_pos()
-	if h == null:
-		return false
-	var hpos: Vector3 = h
-	if _cam.unproject_position(hpos).distance_to(pos) > config.handle_pick_px:
+	var arrows := _wall_arrows()
+	var best := config.handle_pick_px
+	var picked := -1
+	for i in arrows.size():
+		var d := _cam.unproject_position(arrows[i].pos).distance_to(pos)
+		if d < best:
+			best = d
+			picked = i
+	if picked < 0:
 		return false
 	_wall_handle_drag = true
+	_drag_morph_index = arrows[picked].morph
+	_drag_axis = arrows[picked].axis
+	_drag_invert = arrows[picked].invert
 	_drag_start_mouse = pos
-	_drag_start_morph = _selection_morph()
+	_drag_start_weight = _first_weight(_drag_morph_index)
 	_push_undo()   # one drag = one undo step
 	return true
 
 
 func _drag_handle(pos: Vector2) -> void:
-	# Map cursor travel along the wall's outward normal to a 0..1 morph: pull out = thicker.
+	# Map cursor travel along the grabbed arrow's axis to a 0..1 blend-shape weight.
 	if _wall_sel.is_empty():
 		_wall_handle_drag = false
 		return
-	var h = _handle_world_pos()
-	if h == null:
+	var origin = _arrow_pos_of(_drag_morph_index)
+	if origin == null:
 		return
-	var hpos: Vector3 = h
-	var out := _selection_outward()
-	var axis := Vector2.ZERO
-	if out.length() > 0.01:
-		axis = _cam.unproject_position(hpos + out * 0.5) - _cam.unproject_position(hpos)
-	var morph: float
-	if axis.length() > 1.0:
-		var delta := (pos - _drag_start_mouse).dot(axis.normalized())
-		morph = clampf(_drag_start_morph + delta / config.handle_drag_px, 0.0, 1.0)
+	var o: Vector3 = origin
+	var axis2 := _cam.unproject_position(o + _drag_axis * 0.5) - _cam.unproject_position(o)
+	var delta: float
+	if axis2.length() > 1.0:
+		delta = (pos - _drag_start_mouse).dot(axis2.normalized())
 	else:
-		# Outward axis points at/away from the camera (degenerate on screen): up = thicker.
-		morph = clampf(_drag_start_morph + (_drag_start_mouse.y - pos.y) / config.handle_drag_px, 0.0, 1.0)
-	_apply_morph_to_sel(morph)
+		delta = _drag_start_mouse.y - pos.y   # axis points at/away from the camera: vertical drag
+	if _drag_invert:
+		delta = -delta
+	var weight := clampf(_drag_start_weight + delta / config.handle_drag_px, 0.0, 1.0)
+	_apply_weight_to_sel(_drag_morph_index, weight)
 	_update_preview()
 
 
-func _handle_world_pos() -> Variant:
-	# Centroid of the active-deck selected walls, floated off the face along their
-	# outward normal so the handle reads as grabbable. null if none on this deck.
-	var sum := Vector3.ZERO
-	var n := 0
+func _arrow_pos_of(morph: int) -> Variant:
+	for a in _wall_arrows():
+		if a.morph == morph:
+			return a.pos
+	return null
+
+
+func _first_weight(index: int) -> float:
 	for key in _wall_sel:
 		var w: Dictionary = _wall_sel[key]
-		if w.deck != _active_deck:
-			continue
-		sum += _wall_center_world(w)
-		n += 1
-	if n == 0:
-		return null
-	return sum / float(n) + _selection_outward() * config.handle_offset_m
-
-
-func _selection_outward() -> Vector3:
-	# Averaged outward (open-space-facing) normal of the selection; UP if facings cancel.
-	var nrm := Vector3.ZERO
-	for key in _wall_sel:
-		var w: Dictionary = _wall_sel[key]
-		if w.deck != _active_deck:
-			continue
-		nrm += Vector3(w.dir.x, 0.0, w.dir.y)
-	return nrm.normalized() if nrm.length() > 0.01 else Vector3.UP
-
-
-func _draw_wall_handle() -> void:
-	# A small unshaded sphere at the handle point, distance-scaled to a near-constant
-	# screen size and drawn on top (no depth test) so it stays visible and grabbable.
-	var h = _handle_world_pos()
-	if h == null:
-		return
-	var hpos: Vector3 = h
-	var sphere := SphereMesh.new()
-	sphere.radial_segments = 12
-	sphere.rings = 6
-	var mi := MeshInstance3D.new()
-	mi.mesh = sphere
-	mi.position = hpos
-	var s := maxf(_cam.global_position.distance_to(hpos) * config.handle_screen_scale, 0.05)
-	mi.scale = Vector3(s, s, s)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = config.handle_color
-	m.no_depth_test = true
-	mi.material_override = m
-	_preview.add_child(mi)
-
-
-func _selection_morph() -> float:
-	for key in _wall_sel:
-		var w: Dictionary = _wall_sel[key]
-		return maxf(_model.wall_morph(w.deck, w.cell, w.dir), 0.0)
+		var arr := _model.wall_weights(w.deck, w.cell, w.dir)
+		return arr[index] if index < arr.size() else 0.0
 	return 0.0
 
 
-func _apply_morph_to_sel(value: float) -> void:
-	# Live as the slider drags: set every selected wall's morph, then re-render. Undo
-	# was pushed when the slider opened, so the whole scrub is one undo step.
+func _apply_weight_to_sel(index: int, value: float) -> void:
+	# Live as the arrow drags: set that morph's weight on every selected wall, then re-render.
 	for key in _wall_sel:
 		var w: Dictionary = _wall_sel[key]
-		_model.set_wall_morph(w.deck, w.cell, w.dir, value)
+		_model.set_wall_weight(w.deck, w.cell, w.dir, index, value)
 	_render()
 
 
+func _draw_wall_arrows() -> void:
+	for a in _wall_arrows():
+		_add_arrow(_preview, a.pos, a.axis, config.handle_color)
+
+
+func _add_arrow(parent: Node, pos: Vector3, axis: Vector3, col: Color) -> void:
+	# A big, solid, camera-facing triangle (an arrowhead — no shaft/tail, like the FORWARD floor
+	# arrow) pointing along `axis`. Distance-scaled to a near-constant screen size and drawn on top
+	# (no depth test) so it stays visible and grabbable from any orbit angle. The base centre sits at
+	# `pos` — the point picking tests against.
+	var d := axis.normalized()
+	var to_cam := _cam.global_position - pos
+	to_cam = to_cam.normalized() if to_cam.length() > 0.001 else Vector3.BACK
+	var x := d.cross(to_cam)                       # arrow "across", in the camera-facing plane
+	if x.length() < 0.05:                          # axis points at/away from camera: any perpendicular
+		x = d.cross(Vector3.UP if absf(d.dot(Vector3.UP)) < 0.98 else Vector3.RIGHT)
+	x = x.normalized()
+	var face := x.cross(d).normalized()            # front normal, ~toward the camera
+	var s := maxf(_cam.global_position.distance_to(pos) * config.handle_screen_scale, 0.05)
+	var n := Node3D.new()
+	n.transform = Transform3D(Basis(x, d, face).scaled(Vector3(s, s, s)), pos)
+
+	var wh := 0.5    # base half-width
+	var ty := 1.0    # tip length (points +Y = along the axis)
+
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true
+	mat.albedo_color = Color(col, 0.85)
+
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, mat)
+	_tri(im, Vector3(-wh, 0, 0), Vector3(wh, 0, 0), Vector3(0, ty, 0))
+	im.surface_end()
+
+	var mi := MeshInstance3D.new()
+	mi.mesh = im
+	n.add_child(mi)
+	parent.add_child(n)
+
+
 func _dismiss_selection() -> void:
-	_close_radial()
 	_wall_sel.clear()
 	_wall_anchor = null
 	if not _selected.is_empty():
@@ -1734,16 +1712,6 @@ func _wall_center_world(w: Dictionary) -> Vector3:
 	return Vector3(cx, cy, cz)
 
 
-func _close_radial() -> void:
-	if _radial == null:
-		return
-	for c in _radial.get_children():
-		c.queue_free()
-	_radial.visible = false
-
-
-
-
 func _render_wall_selection() -> void:
 	for key in _wall_sel:
 		var w: Dictionary = _wall_sel[key]
@@ -1752,14 +1720,15 @@ func _render_wall_selection() -> void:
 
 
 func _add_wall_marker(parent: Node, cell: Vector2i, dir: Vector2i, col: Color) -> void:
-	# Highlight a wall by overdrawing its actual mesh (at its current morph) in `col`,
-	# on top (no depth test) — consistent with the rendered wall, no placeholder box.
+	# Highlight a wall by overdrawing its actual mesh (at its current weights) in `col`, on top.
 	var mesh := WallMesh.morph_mesh()
 	if mesh == null:
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.set_blend_shape_value(0, maxf(_model.wall_morph(_active_deck, cell, dir), 0.0))
+	var w := _model.wall_weights(_active_deck, cell, dir)
+	for i in mi.get_blend_shape_count():
+		mi.set_blend_shape_value(i, w[i] if i < w.size() else 0.0)
 	mi.transform = ShipRenderer._wall_xform(_active_deck, cell, dir, config)
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -1878,7 +1847,6 @@ func _refresh_ui() -> void:
 		_room_buttons[id].modulate = Color.WHITE if id == _active_room else Color(1, 1, 1, 0.5)
 	_rebuild_stats()
 	_update_gauges()
-	_update_telemetry()
 	_rebuild_diagnostics()
 
 
@@ -1911,76 +1879,39 @@ func _rebuild_stats() -> void:
 func _update_gauges() -> void:
 	if _pwr_gauge == null:
 		return
-	_set_gauge(_pwr_gauge, _results.get("power", {}), config.power_color)
-	_set_gauge(_heat_gauge, _results.get("heat", {}), config.heat_color)
+	_set_gauge(_pwr_gauge, "power", _results.get("power", {}), config.power_color, "MW")
+	_set_gauge(_heat_gauge, "heat", _results.get("heat", {}), config.heat_color, "kW")
 
 
-func _set_gauge(g: RadialGauge, res: Dictionary, col: Color) -> void:
+func _set_gauge(g: RadialGauge, net: String, res: Dictionary, col: Color, unit: String) -> void:
 	if res.is_empty():
 		g.set_reading(0.0, "--", col)
+		g.margin_label.text = ""
 		return
 	var demand: float = res.get("demand", 0.0)
 	var supply: float = res.get("supply", 0.0)
 	var frac := (demand / supply) if supply > 0.0 else (1.0 if demand > 0.0 else 0.0)
+	# Bust = the network can't meet demand. Colour both readouts coral so it's unmissable.
 	var ok: bool = res.get("ok", true)
-	g.set_reading(clampf(frac, 0.0, 1.0), "%d%%" % roundi(frac * 100.0), col if ok else config.status_error_color)
+	var live_col := col if ok else config.status_error_color
+	g.set_reading(clampf(frac, 0.0, 1.0), "%d%%" % roundi(frac * 100.0), live_col)
+	_settle_margin(net, g.margin_label, supply - demand, unit, live_col)
 
 
-func _update_telemetry() -> void:
-	if _tele_rows.is_empty():
-		return
-	var p: Dictionary = _results.get("power", {})
-	var h: Dictionary = _results.get("heat", {})
-	var pm := float(p.get("supply", 0.0)) - float(p.get("demand", 0.0))
-	var hm := float(h.get("supply", 0.0)) - float(h.get("demand", 0.0))
-	# Bust = the network can't meet demand. Colour the readout coral so it's unmissable.
-	_settle_margin("pm", pm, "MW", config.ui_accent_cool if bool(p.get("ok", true)) else config.status_error_color)
-	_settle_margin("hm", hm, "kW", config.ui_accent_cool if bool(h.get("ok", true)) else config.status_error_color)
-	_tele_rows["parts"].text = str(_count_modules())
-	_tele_rows["cells"].text = str(_hull_cell_count())
-	var cost := _model.total_cost()
-	var over_budget := contract != null and cost > contract.budget
-	_tele_rows["budget"].text = "¤%s" % _money(cost)
-	_tele_rows["budget"].modulate = config.status_error_color if over_budget else config.ui_accent_cool
-
-
-func _settle_margin(id: String, target: float, unit: String, col: Color) -> void:
-	# Show the real margin; ease to it when it actually changes (no idle jitter) so
-	# motion means "a calculation happened", never decoration.
-	var lbl: Label = _tele_rows[id]
+func _settle_margin(net: String, lbl: Label, target: float, unit: String, col: Color) -> void:
+	# Show the real margin (the gauge's second readout); ease to it only when it
+	# actually changes (no idle jitter) so motion means "a calculation happened".
 	lbl.modulate = col
-	var from: float = _tele_disp.get(id, target)
-	_tele_disp[id] = target
-	if _tele_tw.has(id) and _tele_tw[id] != null and _tele_tw[id].is_valid():
-		_tele_tw[id].kill()
+	var from: float = _margin_disp.get(net, target)
+	_margin_disp[net] = target
+	if _margin_tw.has(net) and _margin_tw[net] != null and _margin_tw[net].is_valid():
+		_margin_tw[net].kill()
 	if is_equal_approx(from, target):
 		lbl.text = "%+.1f %s" % [target, unit]
 		return
 	var tw := create_tween()
 	tw.tween_method(func(v: float): lbl.text = "%+.1f %s" % [v, unit], from, target, 0.3)
-	_tele_tw[id] = tw
-
-
-func _update_wall_ruler() -> void:
-	# Follow the morph handle while a wall is selected; hide otherwise.
-	if _wall_ruler == null:
-		return
-	if _wall_sel.is_empty():
-		_wall_ruler.visible = false
-		return
-	var h = _handle_world_pos()
-	if h == null or _cam.is_position_behind(h):
-		_wall_ruler.visible = false
-		return
-	_wall_ruler.visible = true
-	_wall_ruler.set_state(_cam.unproject_position(h), _selection_morph())
-
-
-func _hull_cell_count() -> int:
-	var n := 0
-	for d in range(_deck_count):
-		n += _model.hull_cells(d).size()
-	return n
+	_margin_tw[net] = tw
 
 
 func _stat_line(label: String, value: String, value_col := Color.WHITE) -> Control:

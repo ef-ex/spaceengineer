@@ -175,17 +175,20 @@ static func wall_key(cell: Vector2i, dir: Vector2i) -> String:
 	return "%d,%d,%d,%d" % [cell.x, cell.y, dir.x, dir.y]
 
 
-func wall_morph(deck: int, cell: Vector2i, dir: Vector2i) -> float:
-	# Morph weight 0..1 for the authored wall on this edge, or -1.0 if none (= box).
-	return wall_morphs.get(deck, {}).get(wall_key(cell, dir), -1.0)
+func wall_weights(deck: int, cell: Vector2i, dir: Vector2i) -> Array:
+	# Per-morph blend-shape weights (index = mesh blend-shape index) for the wall on this edge.
+	# Empty = all zero (the base mesh).
+	return wall_morphs.get(deck, {}).get(wall_key(cell, dir), [])
 
 
-func set_wall_morph(deck: int, cell: Vector2i, dir: Vector2i, morph: float) -> void:
-	if morph < 0.0:
-		if wall_morphs.has(deck):
-			wall_morphs[deck].erase(wall_key(cell, dir))
-	else:
-		wall_morphs.get_or_add(deck, {})[wall_key(cell, dir)] = morph
+func set_wall_weight(deck: int, cell: Vector2i, dir: Vector2i, index: int, value: float) -> void:
+	var d: Dictionary = wall_morphs.get_or_add(deck, {})
+	var wk := wall_key(cell, dir)
+	var arr: Array = d.get(wk, [])
+	while arr.size() <= index:
+		arr.append(0.0)
+	arr[index] = value
+	d[wk] = arr
 
 
 # --- Aggregate queries ------------------------------------------------------

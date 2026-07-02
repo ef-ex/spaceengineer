@@ -42,8 +42,7 @@ static func add_walls(parent: Node3D, model: ShipDesign, config: DesignerConfig,
 			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i(0, -1), Vector2i(0, 1)]:
 				if model.has_hull(d, cell + dir):
 					continue
-				var mph := model.wall_morph(d, cell, dir)   # -1 (unset) renders at 0 (flat)
-				_morph_wall(parent, d, cell, dir, maxf(mph, 0.0), config.wall_color, alpha, config)
+				_morph_wall(parent, d, cell, dir, model.wall_weights(d, cell, dir), config.wall_color, alpha, config)
 
 
 static func add_roof(parent: Node3D, model: ShipDesign, config: DesignerConfig, deck_count: int, alpha := 1.0, only_deck := -1) -> void:
@@ -86,13 +85,14 @@ static func center(model: ShipDesign, config: DesignerConfig, deck_count: int) -
 		(minz + maxz + 1) * 0.5 * config.cell_size)
 
 
-static func _morph_wall(parent: Node3D, deck: int, cell: Vector2i, dir: Vector2i, morph: float, color: Color, alpha: float, config: DesignerConfig) -> void:
+static func _morph_wall(parent: Node3D, deck: int, cell: Vector2i, dir: Vector2i, weights: Array, color: Color, alpha: float, config: DesignerConfig) -> void:
 	var mesh := WallMesh.morph_mesh()
 	if mesh == null:
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.set_blend_shape_value(0, morph)   # 0 = flat, 1 = thick
+	for i in mi.get_blend_shape_count():
+		mi.set_blend_shape_value(i, weights[i] if i < weights.size() else 0.0)
 	mi.transform = _wall_xform(deck, cell, dir, config)
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
@@ -118,7 +118,7 @@ static func _wall_xform(deck: int, cell: Vector2i, dir: Vector2i, config: Design
 		theta = PI * 0.5
 	var basis := Basis(Vector3.UP, theta)
 	var world_center := Vector3((cell.x + 0.5) * cs + dir.x * 0.5 * cs, 0.0, (cell.y + 0.5) * cs + dir.y * 0.5 * cs)
-	var origin := world_center - basis * Vector3(0.01, 0.0, -0.5)   # mesh's horizontal centre
+	var origin := world_center - basis * Vector3(0.25, 0.0, -0.5)   # mesh's horizontal centre (wall_1.glb ~0.5 m thick)
 	origin.y = deck * config.deck_height
 	return Transform3D(basis, origin)
 

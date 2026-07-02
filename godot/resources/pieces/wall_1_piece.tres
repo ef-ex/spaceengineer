@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WallPiece" format=3]
+
+[ext_resource type="PackedScene" path="res://models/pieces/wall_1.glb" id="1_uwhgb"]
+[ext_resource type="Script" path="res://scripts/designer/pieces/morph_control.gd" id="2_8yth0"]
+[ext_resource type="Script" path="res://scripts/designer/pieces/wall_piece.gd" id="3_pquks"]
+
+[sub_resource type="Resource" id="Resource_56mjy"]
+script = ExtResource("2_8yth0")
+blend_shape = "wall.thin"
+label = "wall.thin"
+position = Vector3(0.49998665, 1.7275908, -0.2677207)
+direction = Vector3(-1, 2.5182962e-05, 0)
+
+[sub_resource type="Resource" id="Resource_egeqh"]
+script = ExtResource("2_8yth0")
+blend_shape = "wall.chamfer"
+label = "wall.chamfer"
+
+[resource]
+script = ExtResource("3_pquks")
+mesh_scene = ExtResource("1_uwhgb")
+morphs = Array[ExtResource("2_8yth0")]([SubResource("Resource_56mjy"), SubResource("Resource_egeqh")])

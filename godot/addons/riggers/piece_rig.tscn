@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bqr1ggerspiece01"]
+
+[ext_resource type="Script" path="res://addons/riggers/piece_rig.gd" id="1"]
+
+[node name="PieceRig" type="Node3D"]
+script = ExtResource("1")

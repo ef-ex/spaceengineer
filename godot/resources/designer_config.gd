@@ -120,3 +120,7 @@ extends Resource
 @export var ui_border_width: float = 1.0
 ## Panel inner padding (px).
 @export var ui_pad: int = 14
+## Show disabled "Planned" buttons for not-yet-built features (Decorate phase,
+## extra wall variants). ON = full-layout preview for UI design work; OFF = the
+## prototype shows only what actually works.
+@export var ui_show_planned: bool = false

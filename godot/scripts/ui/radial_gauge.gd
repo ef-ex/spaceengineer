@@ -1,7 +1,9 @@
 extends Control
 ## Circular percent gauge for the designer info panel (Workbench skin): a faint
 ## track ring, a value arc that fills clockwise from 12 o'clock, the percent in
-## the centre, and a caption below. value is 0..1. Display-only (ignores mouse).
+## the centre, a small margin readout under the ring, and a caption below.
+## value is 0..1. Display-only (ignores mouse). One instrument, two readouts —
+## replaces the separate "telemetry" panel that duplicated this same subject.
 
 const RADIUS := 33.0
 const WIDTH := 6.0
@@ -11,10 +13,11 @@ var arc_color: Color = Color(1.0, 0.812, 0.478)
 var track_color: Color = Color(1.0, 0.812, 0.478, 0.18)
 var _pct: Label
 var _cap: Label
+var margin_label: Label   # public: designer.gd tweens this directly on settle
 
 
 func _init() -> void:
-	custom_minimum_size = Vector2(86, 100)
+	custom_minimum_size = Vector2(86, 116)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
@@ -27,9 +30,17 @@ func _ready() -> void:
 	_pct.add_theme_font_size_override("font_size", 18)
 	_pct.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_pct)
+	margin_label = Label.new()
+	margin_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	margin_label.position = Vector2(0, 74)
+	margin_label.size = Vector2(86, 14)
+	margin_label.add_theme_font_size_override("font_size", 10)
+	margin_label.modulate = Color(1, 1, 1, 0.65)
+	margin_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(margin_label)
 	_cap = Label.new()
 	_cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_cap.position = Vector2(0, 80)
+	_cap.position = Vector2(0, 96)
 	_cap.size = Vector2(86, 16)
 	_cap.add_theme_font_size_override("font_size", 11)
 	_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
