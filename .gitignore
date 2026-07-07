@@ -39,3 +39,9 @@ TODO_TOMORROW.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Concept art — local-only exploration workspace (image binaries + WIP style profiles), never committed
+concept-art/
+
+# Claude Code — local session / agent state
+.claude/
